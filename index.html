@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiquidCasino</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --neon-cyan:   #00f5ff;
+    --neon-purple: #bf00ff;
+    --neon-pink:   #ff0080;
+    --neon-gold:   #ffd700;
+    --bg-deep:     #020408;
+    --text-dim:    rgba(255,255,255,0.5);
+  }
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Rajdhani',sans-serif; background:var(--bg-deep); color:#fff; min-height:100vh; overflow-x:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:none; }
+  #cursor { position:fixed; pointer-events:none; z-index:99999; width:10px; height:10px; border-radius:50%; background:var(--neon-cyan); box-shadow:0 0 10px var(--neon-cyan); transform:translate(-50%,-50%); }
+  .trail { position:fixed; pointer-events:none; z-index:99998; border-radius:50%; transform:translate(-50%,-50%); }
+  #bgCanvas { position:fixed; inset:0; z-index:0; pointer-events:none; }
+  body::before { content:''; position:fixed; inset:0; z-index:1; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events:none; opacity:0.4; }
+
+  #wrap { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:0; padding:40px 20px; text-align:center; max-width:600px; width:100%; }
+
+  .top-badge { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.4em; color:var(--neon-cyan); border:1px solid rgba(0,245,255,0.3); padding:6px 20px; border-radius:100px; margin-bottom:32px; animation:borderPulse 3s ease-in-out infinite; }
+  @keyframes borderPulse { 0%,100%{box-shadow:0 0 6px rgba(0,245,255,0.2)} 50%{box-shadow:0 0 18px rgba(0,245,255,0.5)} }
+
+  .logo { font-family:'Orbitron',monospace; font-weight:900; font-size:clamp(3rem,14vw,7rem); line-height:0.9; background:linear-gradient(135deg,var(--neon-cyan),var(--neon-purple),var(--neon-pink)); background-size:300% 300%; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:gradShift 4s ease infinite; filter:drop-shadow(0 0 40px rgba(0,245,255,0.3)); margin-bottom:8px; }
+  @keyframes gradShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+  .logo-sub { font-family:'Orbitron',monospace; font-size:clamp(0.8rem,3vw,1.1rem); letter-spacing:0.5em; color:rgba(255,255,255,0.35); text-transform:uppercase; margin-bottom:40px; }
+
+  .divider { width:100%; height:1px; max-width:400px; background:linear-gradient(90deg,transparent,var(--neon-cyan),var(--neon-purple),transparent); opacity:0.35; margin-bottom:40px; }
+
+  .features { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; width:100%; margin-bottom:36px; }
+  .feat { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; gap:8px; transition:all 0.3s; }
+  .feat:hover { border-color:rgba(0,245,255,0.25); background:rgba(0,245,255,0.04); transform:translateY(-3px); }
+  .feat-icon { font-size:1.8rem; }
+  .feat-name { font-family:'Orbitron',monospace; font-size:0.55rem; letter-spacing:0.15em; color:var(--text-dim); }
+
+  .currency-box { background:linear-gradient(135deg,rgba(255,215,0,0.05),rgba(191,0,255,0.04)); border:1px solid rgba(255,215,0,0.2); border-radius:16px; padding:18px 24px; margin-bottom:32px; width:100%; }
+  .currency-title { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.35em; color:var(--neon-gold); margin-bottom:10px; }
+  .currency-desc { font-size:0.85rem; color:var(--text-dim); line-height:1.6; letter-spacing:0.05em; }
+  .currency-rate { font-family:'Orbitron',monospace; font-size:0.8rem; color:var(--neon-cyan); margin-top:8px; }
+
+  .btn-group { display:flex; flex-direction:column; gap:12px; width:100%; max-width:340px; }
+  .enter-btn { font-family:'Orbitron',monospace; font-size:0.85rem; letter-spacing:0.3em; font-weight:900; color:#000; background:linear-gradient(135deg,var(--neon-cyan),var(--neon-purple)); border:none; padding:18px; border-radius:100px; cursor:none; transition:all 0.3s; box-shadow:0 0 28px rgba(0,245,255,0.35); text-decoration:none; display:block; text-align:center; }
+  .enter-btn:hover { box-shadow:0 0 44px rgba(0,245,255,0.6); transform:scale(1.03); }
+  .login-btn { font-family:'Orbitron',monospace; font-size:0.75rem; letter-spacing:0.25em; color:var(--text-dim); border:1px solid rgba(255,255,255,0.1); background:transparent; padding:14px; border-radius:100px; cursor:none; transition:all 0.3s; text-decoration:none; display:block; text-align:center; }
+  .login-btn:hover { color:#fff; border-color:rgba(255,255,255,0.3); }
+
+  .footer-note { margin-top:32px; font-size:0.65rem; letter-spacing:0.15em; color:rgba(255,255,255,0.15); line-height:1.8; }
+
+  .floating-coins { position:fixed; inset:0; z-index:1; pointer-events:none; overflow:hidden; }
+  .coin { position:absolute; animation:floatCoin linear infinite; opacity:0; }
+  @keyframes floatCoin { 0%{transform:translateY(100vh) rotate(0deg);opacity:0} 10%{opacity:0.3} 90%{opacity:0.15} 100%{transform:translateY(-100px) rotate(720deg);opacity:0} }
+</style>
+</head>
+<body>
+<div id="cursor"></div>
+<canvas id="bgCanvas"></canvas>
+<div class="floating-coins" id="floatingCoins"></div>
+
+<div id="wrap">
+  <div class="top-badge">◈ LAIKO VALIUTA ◈</div>
+  <div class="logo">LIQUID<br>CASINO</div>
+  <div class="logo-sub">Žaisk · Laimėk · Leisk laiką</div>
+  <div class="divider"></div>
+
+  <div class="features">
+    <div class="feat"><span class="feat-icon">📦</span><span class="feat-name">CASE OPENING</span></div>
+    <div class="feat"><span class="feat-icon">🎡</span><span class="feat-name">RULETĖ</span></div>
+    <div class="feat"><span class="feat-icon">🎯</span><span class="feat-name">PLINKO</span></div>
+    <div class="feat"><span class="feat-icon">🎰</span><span class="feat-name">SLOTAI</span></div>
+    <div class="feat"><span class="feat-icon">💣</span><span class="feat-name">MINOS</span></div>
+    <div class="feat"><span class="feat-icon">🏆</span><span class="feat-name">TOP 10</span></div>
+  </div>
+
+  <div class="currency-box">
+    <div class="currency-title">◈ KAS YRA JEVREJAS? ◈</div>
+    <div class="currency-desc">Valiuta yra tavo laikas — kuo ilgiau esi puslapyje, tuo daugiau uždirbi. Konvertuok laiką į jevrejus ir žaisk!</div>
+    <div class="currency-rate">10 sekundžių = 1 jevrejas ⬡</div>
+  </div>
+
+  <div class="btn-group">
+    <a href="login.html" class="enter-btn" id="enterBtn">⚡ PRADĖTI ŽAISTI</a>
+    <a href="login.html" class="login-btn">JAU TURIU PASKYRĄ →</a>
+  </div>
+
+  <div class="footer-note">Tik pramogai · Grupės vidinis projektas · 2026</div>
+</div>
+
+<script>
+const saved = localStorage.getItem('lc_user');
+if (saved) {
+  document.getElementById('enterBtn').href = 'casino.html';
+  document.getElementById('enterBtn').textContent = '⚡ TĘSTI ŽAIDIMĄ';
+}
+
+const coinEmojis = ['⬡','💎','⭐','🍒','7️⃣','💣'];
+const container  = document.getElementById('floatingCoins');
+for (let i=0;i<14;i++) {
+  const c = document.createElement('div');
+  c.className = 'coin';
+  c.textContent = coinEmojis[Math.floor(Math.random()*coinEmojis.length)];
+  c.style.cssText = `left:${Math.random()*100}vw;font-size:${0.8+Math.random()*1.2}rem;animation-duration:${8+Math.random()*12}s;animation-delay:${Math.random()*8}s;`;
+  container.appendChild(c);
+}
+
+const bgC=document.getElementById('bgCanvas'),bgX=bgC.getContext('2d');
+function resizeBg(){bgC.width=innerWidth;bgC.height=innerHeight;}resizeBg();addEventListener('resize',resizeBg);
+const CLR=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const pts=Array.from({length:60},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.4+0.3,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3-.12,c:CLR[Math.floor(Math.random()*4)],a:Math.random()*.5+.2,p:Math.random()*Math.PI*2}));
+(function bgLoop(){bgX.clearRect(0,0,bgC.width,bgC.height);let g=bgX.createRadialGradient(bgC.width*.2,bgC.height*.3,0,bgC.width*.2,bgC.height*.3,bgC.width*.6);g.addColorStop(0,'rgba(0,87,255,0.06)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);g=bgX.createRadialGradient(bgC.width*.8,bgC.height*.7,0,bgC.width*.8,bgC.height*.7,bgC.width*.5);g.addColorStop(0,'rgba(191,0,255,0.06)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.p+=.04;if(p.y<-10){p.y=bgC.height+10;p.x=Math.random()*bgC.width;}if(p.x<-10)p.x=bgC.width+10;if(p.x>bgC.width+10)p.x=-10;bgX.save();bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.shadowBlur=10;bgX.shadowColor=p.c;bgX.globalAlpha=p.a*(.6+.4*Math.sin(p.p));bgX.fillStyle=p.c;bgX.fill();bgX.restore();});requestAnimationFrame(bgLoop);})();
+
+const cursorEl=document.getElementById('cursor');
+const tColors=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const tPool=[];
+for(let i=0;i<16;i++){const t=document.createElement('div');t.className='trail';const s=Math.max(3,9-i*0.35);t.style.cssText=`width:${s}px;height:${s}px;opacity:0;background:${tColors[i%4]};box-shadow:0 0 ${s*1.5}px ${tColors[i%4]};`;document.body.appendChild(t);tPool.push({el:t});}
+let mX=0,mY=0;const tPos=Array(16).fill(null).map(()=>({x:0,y:0}));
+document.addEventListener('mousemove',e=>{mX=e.clientX;mY=e.clientY;cursorEl.style.left=mX+'px';cursorEl.style.top=mY+'px';});
+(function tLoop(){tPos.unshift({x:mX,y:mY});tPos.pop();tPool.forEach((t,i)=>{t.el.style.left=tPos[i].x+'px';t.el.style.top=tPos[i].y+'px';t.el.style.opacity=Math.max(0,(1-i/16)*0.7);t.el.style.transform=`translate(-50%,-50%) scale(${Math.max(0.3,1-i/16)})`;});requestAnimationFrame(tLoop);})();
+</script>
+</body>
+</html>
