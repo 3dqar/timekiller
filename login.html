@@ -237,19 +237,11 @@ document.getElementById('regPass').addEventListener('input', e => {
 /* ── API call ── */
 async function apiCall(data) {
   const res = await fetch(API, {
-    method: 'POST', mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(data)
   });
-}
-
-async function apiCallWithResponse(data) {
-  const res  = await fetch(API + '?t=' + Date.now(), { method: 'GET' });
-  await fetch(API, {
-    method: 'POST', mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  });
+  return await res.json();
 }
 
 /* ── Login ── */
@@ -260,12 +252,7 @@ async function doLogin() {
   setStatus('Jungiamasi...', 'loading');
   document.getElementById('loginBtn').disabled = true;
   try {
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'login', username, password })
-    });
-    const d = await res.json();
+    const d = await apiCall({ action: 'login', username, password });
     if (d.ok) {
       setStatus('✓ Sveiki sugrįžę, ' + d.user.username + '!', 'ok');
       localStorage.setItem('lc_user', JSON.stringify(d.user));
@@ -275,15 +262,15 @@ async function doLogin() {
       document.getElementById('loginBtn').disabled = false;
     }
   } catch(e) {
-    setStatus('⚠ Nepavyko prisijungti', 'err');
+    setStatus('⚠ Nepavyko prisijungti: ' + e.message, 'err');
     document.getElementById('loginBtn').disabled = false;
   }
 }
 
 /* ── Register ── */
 async function doRegister() {
-  const username = document.getElementById('regUser').value.trim();
-  const password = document.getElementById('regPass').value;
+  const username  = document.getElementById('regUser').value.trim();
+  const password  = document.getElementById('regPass').value;
   const password2 = document.getElementById('regPass2').value;
   if (!username || !password) { setStatus('⚠ Užpildyk visus laukus', 'err'); return; }
   if (username.length < 3)    { setStatus('⚠ Vardas per trumpas (min 3)', 'err'); return; }
@@ -292,12 +279,7 @@ async function doRegister() {
   setStatus('Kuriama paskyra...', 'loading');
   document.getElementById('regBtn').disabled = true;
   try {
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'register', username, password })
-    });
-    const d = await res.json();
+    const d = await apiCall({ action: 'register', username, password });
     if (d.ok) {
       setStatus('✓ Paskyra sukurta! Prisijunk.', 'ok');
       setTimeout(() => switchTab('login'), 1500);
@@ -306,7 +288,7 @@ async function doRegister() {
     }
     document.getElementById('regBtn').disabled = false;
   } catch(e) {
-    setStatus('⚠ Nepavyko sukurti paskyros', 'err');
+    setStatus('⚠ Nepavyko: ' + e.message, 'err');
     document.getElementById('regBtn').disabled = false;
   }
 }
