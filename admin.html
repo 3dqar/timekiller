@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiquidCasino — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root{--neon-cyan:#00f5ff;--neon-purple:#bf00ff;--neon-pink:#ff0080;--neon-green:#00ff99;--neon-red:#ff2040;--neon-gold:#ffd700;--bg-deep:#020408;--bg-card:rgba(255,255,255,0.03);--text-dim:rgba(255,255,255,0.5);}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Rajdhani',sans-serif;background:var(--bg-deep);color:#fff;min-height:100vh;cursor:none;}
+  #cursor{position:fixed;pointer-events:none;z-index:99999;width:10px;height:10px;border-radius:50%;background:var(--neon-cyan);box-shadow:0 0 10px var(--neon-cyan);transform:translate(-50%,-50%);}
+  .trail{position:fixed;pointer-events:none;z-index:99998;border-radius:50%;transform:translate(-50%,-50%);}
+  #bgCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
+
+  /* LOGIN */
+  #loginScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:20px;padding:20px;position:relative;z-index:2;}
+  .login-title{font-family:'Orbitron',monospace;font-size:1.4rem;font-weight:900;letter-spacing:0.2em;color:var(--neon-red);filter:drop-shadow(0 0 12px var(--neon-red));}
+  .login-sub{font-size:0.8rem;letter-spacing:0.2em;color:var(--text-dim);}
+  #pwInput{font-family:'Orbitron',monospace;font-size:0.9rem;letter-spacing:0.2em;text-align:center;background:rgba(255,32,64,0.05);border:1px solid rgba(255,32,64,0.3);color:#fff;padding:12px 24px;border-radius:100px;outline:none;width:280px;}
+  #pwInput:focus{border-color:var(--neon-red);}
+  .login-btn{font-family:'Orbitron',monospace;font-size:0.75rem;letter-spacing:0.25em;color:#000;background:var(--neon-red);border:none;padding:12px 32px;border-radius:100px;cursor:none;transition:all 0.3s;font-weight:700;}
+  .login-btn:hover{box-shadow:0 0 20px rgba(255,32,64,0.5);transform:scale(1.03);}
+  #loginError{color:var(--neon-red);font-size:0.75rem;letter-spacing:0.2em;min-height:18px;}
+
+  /* ADMIN PANEL */
+  #adminPanel{display:none;max-width:1000px;margin:0 auto;padding:24px clamp(16px,4vw,40px) 80px;position:relative;z-index:2;}
+
+  .admin-topbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:28px;}
+  .admin-title{font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:900;background:linear-gradient(135deg,var(--neon-red),var(--neon-purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.1em;}
+  .admin-btns{display:flex;gap:10px;flex-wrap:wrap;}
+  .back-btn{font-family:'Orbitron',monospace;font-size:0.65rem;letter-spacing:0.2em;color:var(--text-dim);border:1px solid rgba(255,255,255,0.1);background:transparent;padding:8px 18px;border-radius:100px;cursor:none;text-decoration:none;transition:all 0.3s;}
+  .back-btn:hover{color:var(--neon-cyan);border-color:rgba(0,245,255,0.4);}
+
+  /* STATS */
+  .admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;}
+  .astat{background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;text-align:center;}
+  .astat-label{font-family:'Orbitron',monospace;font-size:0.55rem;letter-spacing:0.3em;color:var(--text-dim);margin-bottom:6px;}
+  .astat-val{font-family:'Orbitron',monospace;font-size:1.4rem;font-weight:900;}
+
+  /* STATUS */
+  #statusMsg{font-family:'Orbitron',monospace;font-size:0.7rem;letter-spacing:0.2em;text-align:center;min-height:20px;margin-bottom:16px;}
+  #statusMsg.ok{color:var(--neon-green);}
+  #statusMsg.err{color:var(--neon-red);}
+  #statusMsg.info{color:var(--text-dim);animation:pulse 1s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:1}}
+
+  /* USERS TABLE */
+  .section-label{font-family:'Orbitron',monospace;font-size:0.65rem;letter-spacing:0.4em;color:var(--text-dim);margin-bottom:14px;}
+  .table-wrap{background:var(--bg-card);border:1px solid rgba(0,245,255,0.1);border-radius:16px;overflow:hidden;margin-bottom:28px;}
+  .table-head{display:grid;grid-template-columns:140px 130px 100px 80px 80px 1fr;padding:12px 16px;background:rgba(0,245,255,0.04);border-bottom:1px solid rgba(0,245,255,0.08);gap:8px;}
+  .th{font-family:'Orbitron',monospace;font-size:0.58rem;letter-spacing:0.25em;color:var(--text-dim);}
+  .user-row{display:grid;grid-template-columns:140px 130px 100px 80px 80px 1fr;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;gap:8px;transition:background 0.2s;}
+  .user-row:last-child{border-bottom:none;}
+  .user-row:hover{background:rgba(255,255,255,0.02);}
+  .u-name{font-family:'Rajdhani',sans-serif;font-size:0.9rem;font-weight:600;color:#fff;}
+  .u-field{background:transparent;border:1px solid transparent;color:#fff;font-family:'Orbitron',monospace;font-size:0.72rem;padding:5px 8px;border-radius:6px;outline:none;transition:all 0.2s;width:100%;}
+  .u-field:focus{border-color:rgba(0,245,255,0.35);background:rgba(0,245,255,0.04);}
+  .u-coins{color:var(--neon-gold);}
+  .u-level{color:var(--neon-purple);}
+  .row-btns{display:flex;gap:6px;}
+  .save-row-btn{font-family:'Orbitron',monospace;font-size:0.55rem;letter-spacing:0.15em;padding:5px 12px;border-radius:100px;border:1px solid rgba(0,245,255,0.3);background:transparent;color:var(--neon-cyan);cursor:none;transition:all 0.2s;white-space:nowrap;}
+  .save-row-btn:hover{background:rgba(0,245,255,0.1);}
+  .del-row-btn{font-family:'Orbitron',monospace;font-size:0.55rem;letter-spacing:0.1em;padding:5px 10px;border-radius:100px;border:1px solid rgba(255,32,64,0.25);background:transparent;color:rgba(255,32,64,0.6);cursor:none;transition:all 0.2s;}
+  .del-row-btn:hover{border-color:var(--neon-red);color:var(--neon-red);background:rgba(255,32,64,0.08);}
+
+  /* ADD COINS BOX */
+  .action-box{background:var(--bg-card);border:1px solid rgba(255,215,0,0.15);border-radius:16px;padding:20px;margin-bottom:20px;}
+  .action-title{font-family:'Orbitron',monospace;font-size:0.65rem;letter-spacing:0.3em;color:var(--neon-gold);margin-bottom:14px;}
+  .action-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .action-select{font-family:'Orbitron',monospace;font-size:0.7rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:9px 14px;border-radius:10px;outline:none;cursor:none;}
+  .action-input{font-family:'Orbitron',monospace;font-size:0.8rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:9px 14px;border-radius:10px;outline:none;width:120px;text-align:center;}
+  .action-btn{font-family:'Orbitron',monospace;font-size:0.65rem;letter-spacing:0.2em;padding:9px 20px;border-radius:100px;border:1px solid rgba(255,215,0,0.4);background:rgba(255,215,0,0.08);color:var(--neon-gold);cursor:none;transition:all 0.3s;white-space:nowrap;}
+  .action-btn:hover{background:rgba(255,215,0,0.18);filter:drop-shadow(0 0 8px rgba(255,215,0,0.4));}
+  .action-btn.red{border-color:rgba(255,32,64,0.4);background:rgba(255,32,64,0.06);color:var(--neon-red);}
+  .action-btn.red:hover{background:rgba(255,32,64,0.16);}
+
+  /* RELOAD BTN */
+  .reload-btn{font-family:'Orbitron',monospace;font-size:0.65rem;letter-spacing:0.2em;padding:8px 20px;border-radius:100px;border:1px solid rgba(0,245,255,0.3);background:transparent;color:var(--neon-cyan);cursor:none;transition:all 0.3s;}
+  .reload-btn:hover{background:rgba(0,245,255,0.1);}
+
+  #toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);z-index:9999;font-family:'Orbitron',monospace;font-size:0.7rem;letter-spacing:0.2em;padding:12px 28px;border-radius:100px;transition:transform 0.4s cubic-bezier(.17,.67,.3,1.4),opacity 0.4s;opacity:0;pointer-events:none;white-space:nowrap;}
+  #toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+  #toast.ok{background:rgba(0,255,153,0.12);border:1px solid rgba(0,255,153,0.4);color:var(--neon-green);}
+  #toast.err{background:rgba(255,32,64,0.12);border:1px solid rgba(255,32,64,0.4);color:var(--neon-red);}
+  ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--neon-purple);border-radius:2px}
+
+  @media(max-width:700px){
+    .table-head,.user-row{grid-template-columns:1fr 1fr 80px;font-size:0.65rem;}
+    .th:nth-child(n+4),.user-row>*:nth-child(n+4){display:none;}
+    .row-btns{display:flex;}
+  }
+</style>
+</head>
+<body>
+<div id="cursor"></div>
+<canvas id="bgCanvas"></canvas>
+<div id="toast"></div>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-title">⚠ ADMIN ZONA ⚠</div>
+  <div class="login-sub">TIKTAI ADMINISTRATORIUI</div>
+  <input id="pwInput" type="password" placeholder="Slaptažodis" autocomplete="current-password" />
+  <button class="login-btn" onclick="tryLogin()">PRISIJUNGTI</button>
+  <div id="loginError"></div>
+</div>
+
+<!-- ADMIN -->
+<div id="adminPanel">
+  <div class="admin-topbar">
+    <div class="admin-title">⚡ LIQUID CASINO ADMIN</div>
+    <div class="admin-btns">
+      <a href="casino.html" class="back-btn">← CASINO</a>
+      <button class="reload-btn" onclick="loadUsers()">↻ ATNAUJINTI</button>
+    </div>
+  </div>
+
+  <div id="statusMsg"></div>
+
+  <div class="admin-stats" id="adminStats">
+    <div class="astat"><div class="astat-label">ŽAIDĖJAI</div><div class="astat-val" id="statPlayers" style="color:var(--neon-cyan)">...</div></div>
+    <div class="astat"><div class="astat-label">VISO JEVREJŲ</div><div class="astat-val" id="statCoins" style="color:var(--neon-gold)">...</div></div>
+    <div class="astat"><div class="astat-label">AUKŠČIAUSIAS LVL</div><div class="astat-val" id="statMaxLvl" style="color:var(--neon-purple)">...</div></div>
+    <div class="astat"><div class="astat-label">TURTUOLIAUSIAS</div><div class="astat-val" id="statRich" style="color:var(--neon-pink);font-size:0.9rem">...</div></div>
+  </div>
+
+  <!-- QUICK ACTIONS -->
+  <div class="action-box">
+    <div class="action-title">◈ GREITI VEIKSMAI ◈</div>
+    <div class="action-row">
+      <select class="action-select" id="actionUser"></select>
+      <input class="action-input" id="actionAmount" type="number" placeholder="Kiekis" value="100" />
+      <button class="action-btn" onclick="doAction('add')">+ PRIDĖTI JEVREJŲ</button>
+      <button class="action-btn red" onclick="doAction('remove')">− ATIMTI JEVREJŲ</button>
+      <button class="action-btn" onclick="doAction('reset')" style="border-color:rgba(191,0,255,0.4);background:rgba(191,0,255,0.06);color:var(--neon-purple);">RESETUOTI</button>
+    </div>
+  </div>
+
+  <!-- USERS TABLE -->
+  <div class="section-label">◈ VISI ŽAIDĖJAI ◈</div>
+  <div class="table-wrap">
+    <div class="table-head">
+      <div class="th">VARTOTOJAS</div>
+      <div class="th">SLAPTAŽODIS</div>
+      <div class="th">JEVREJAI</div>
+      <div class="th">XP</div>
+      <div class="th">LYGIS</div>
+      <div class="th">VEIKSMAI</div>
+    </div>
+    <div id="usersBody"><div style="text-align:center;padding:30px;color:var(--text-dim);font-family:Orbitron,monospace;font-size:0.7rem;letter-spacing:0.3em;">KRAUNAMA...</div></div>
+  </div>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycby_zcF3Oh62j-N_-iHqv_8Mnpo-H776lNc5f9Wr0zsgzgKW-Ugt2QsBWQo8ml_bnCKkYA/exec';
+const ADMIN_PW = 'lc2026admin';
+let users = [];
+
+/* ── LOGIN ── */
+document.getElementById('pwInput').addEventListener('keydown', e => { if(e.key==='Enter') tryLogin(); });
+function tryLogin() {
+  if(document.getElementById('pwInput').value === ADMIN_PW) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('adminPanel').style.display  = 'block';
+    loadUsers();
+  } else {
+    document.getElementById('loginError').textContent = '⚠ Neteisingas slaptažodis';
+    document.getElementById('pwInput').value = '';
+  }
+}
+
+/* ── LOAD USERS ── */
+async function loadUsers() {
+  setStatus('Kraunama...','info');
+  try {
+    const res  = await fetch(API, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'getAll'}) });
+    const data = await res.json();
+    if(data.ok) {
+      users = data.users;
+      renderUsers();
+      renderStats();
+      populateSelect();
+      setStatus('✓ Atnaujinta','ok');
+      setTimeout(()=>setStatus('',''),2000);
+    } else {
+      setStatus('⚠ '+data.error,'err');
+    }
+  } catch(e) {
+    setStatus('⚠ Nepavyko įkelti: '+e.message,'err');
+  }
+}
+
+/* ── RENDER USERS ── */
+function renderUsers() {
+  if(!users.length){document.getElementById('usersBody').innerHTML='<div style="text-align:center;padding:24px;color:var(--text-dim);font-size:0.75rem;">Nėra žaidėjų</div>';return;}
+  document.getElementById('usersBody').innerHTML = users.map((u,i) => `
+    <div class="user-row" id="urow-${i}">
+      <div class="u-name">${u.username}</div>
+      <input class="u-field" data-i="${i}" data-f="password" value="${u.password}" type="text" />
+      <input class="u-field u-coins" data-i="${i}" data-f="coins" value="${u.coins}" type="number" />
+      <input class="u-field" data-i="${i}" data-f="xp" value="${u.xp}" type="number" style="color:var(--neon-purple);" />
+      <input class="u-field u-level" data-i="${i}" data-f="level" value="${u.level}" type="number" />
+      <div class="row-btns">
+        <button class="save-row-btn" onclick="saveRow(${i})">SAUGOTI</button>
+        <button class="del-row-btn"  onclick="deleteUser(${i})">✕</button>
+      </div>
+    </div>`).join('');
+
+  document.querySelectorAll('.u-field').forEach(el => {
+    el.addEventListener('change', e => {
+      const i = parseInt(e.target.dataset.i);
+      const f = e.target.dataset.f;
+      users[i][f] = f==='password' ? e.target.value : (parseInt(e.target.value)||0);
+    });
+  });
+}
+
+/* ── SAVE ROW ── */
+async function saveRow(i) {
+  const u = users[i];
+  setStatus('Saugojama...','info');
+  try {
+    const res  = await fetch(API, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'adminUpdate', username:u.username, password:u.password, coins:u.coins, xp:u.xp, level:u.level}) });
+    const data = await res.json();
+    if(data.ok){ showToast('✓ '+u.username+' išsaugota','ok'); setStatus('',''); }
+    else setStatus('⚠ '+data.error,'err');
+  } catch(e) { setStatus('⚠ Klaida','err'); }
+}
+
+/* ── DELETE USER ── */
+async function deleteUser(i) {
+  if(!confirm('Ištrinti "'+users[i].username+'"? Tai negrįžtama!')) return;
+  setStatus('Trinama...','info');
+  try {
+    const res  = await fetch(API, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'deleteUser', username:users[i].username}) });
+    const data = await res.json();
+    if(data.ok){ users.splice(i,1); renderUsers(); renderStats(); populateSelect(); showToast('Ištrinta','ok'); setStatus('',''); }
+    else setStatus('⚠ '+data.error,'err');
+  } catch(e) { setStatus('⚠ Klaida','err'); }
+}
+
+/* ── QUICK ACTIONS ── */
+async function doAction(type) {
+  const username = document.getElementById('actionUser').value;
+  const amount   = parseInt(document.getElementById('actionAmount').value)||0;
+  if(!username) { showToast('Pasirink žaidėją!','err'); return; }
+  const u = users.find(x=>x.username===username);
+  if(!u) return;
+
+  if(type==='add')    u.coins = (parseInt(u.coins)||0) + amount;
+  if(type==='remove') u.coins = Math.max(0,(parseInt(u.coins)||0) - amount);
+  if(type==='reset')  { u.coins=0; u.xp=0; u.level=1; }
+
+  setStatus('Saugojama...','info');
+  try {
+    const res  = await fetch(API, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'adminUpdate', username:u.username, password:u.password, coins:u.coins, xp:u.xp, level:u.level}) });
+    const data = await res.json();
+    if(data.ok){ renderUsers(); renderStats(); showToast('✓ Atlikta!','ok'); setStatus('',''); }
+    else setStatus('⚠ '+data.error,'err');
+  } catch(e) { setStatus('⚠ Klaida','err'); }
+}
+
+/* ── STATS ── */
+function renderStats() {
+  document.getElementById('statPlayers').textContent = users.length;
+  document.getElementById('statCoins').textContent   = users.reduce((s,u)=>s+(parseInt(u.coins)||0),0).toLocaleString();
+  const maxLvl = Math.max(...users.map(u=>parseInt(u.level)||1));
+  document.getElementById('statMaxLvl').textContent  = maxLvl;
+  const rich = users.reduce((a,b)=>(parseInt(a.coins)||0)>(parseInt(b.coins)||0)?a:b, users[0]);
+  document.getElementById('statRich').textContent    = rich ? rich.username : '—';
+}
+
+function populateSelect() {
+  const sel = document.getElementById('actionUser');
+  sel.innerHTML = users.map(u=>`<option value="${u.username}">${u.username}</option>`).join('');
+}
+
+function setStatus(msg,type){const el=document.getElementById('statusMsg');el.textContent=msg;el.className=type;}
+function showToast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;clearTimeout(t._timer);t._timer=setTimeout(()=>{t.className=type;},3000);}
+
+/* ── BG ── */
+const bgC=document.getElementById('bgCanvas'),bgX=bgC.getContext('2d');
+function resizeBg(){bgC.width=innerWidth;bgC.height=innerHeight;}resizeBg();addEventListener('resize',resizeBg);
+const CLR=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const pts=Array.from({length:40},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.4+0.3,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3-.12,c:CLR[Math.floor(Math.random()*4)],a:Math.random()*.5+.2,p:Math.random()*Math.PI*2}));
+(function bgLoop(){bgX.clearRect(0,0,bgC.width,bgC.height);let g=bgX.createRadialGradient(bgC.width*.2,bgC.height*.3,0,bgC.width*.2,bgC.height*.3,bgC.width*.6);g.addColorStop(0,'rgba(255,32,64,0.04)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);g=bgX.createRadialGradient(bgC.width*.8,bgC.height*.7,0,bgC.width*.8,bgC.height*.7,bgC.width*.5);g.addColorStop(0,'rgba(191,0,255,0.04)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.p+=.04;if(p.y<-10){p.y=bgC.height+10;p.x=Math.random()*bgC.width;}if(p.x<-10)p.x=bgC.width+10;if(p.x>bgC.width+10)p.x=-10;bgX.save();bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.shadowBlur=10;bgX.shadowColor=p.c;bgX.globalAlpha=p.a*(.6+.4*Math.sin(p.p));bgX.fillStyle=p.c;bgX.fill();bgX.restore();});requestAnimationFrame(bgLoop);})();
+const cursorEl=document.getElementById('cursor');const tColors=['#00f5ff','#bf00ff','#ff0080','#0057ff'];const tPool=[];
+for(let i=0;i<14;i++){const t=document.createElement('div');t.className='trail';const s=Math.max(3,9-i*0.35);t.style.cssText=`width:${s}px;height:${s}px;opacity:0;background:${tColors[i%4]};box-shadow:0 0 ${s*1.5}px ${tColors[i%4]};`;document.body.appendChild(t);tPool.push({el:t});}
+let mX=0,mY=0;const tPos=Array(14).fill(null).map(()=>({x:0,y:0}));
+document.addEventListener('mousemove',e=>{mX=e.clientX;mY=e.clientY;cursorEl.style.left=mX+'px';cursorEl.style.top=mY+'px';});
+(function tLoop(){tPos.unshift({x:mX,y:mY});tPos.pop();tPool.forEach((t,i)=>{t.el.style.left=tPos[i].x+'px';t.el.style.top=tPos[i].y+'px';t.el.style.opacity=Math.max(0,(1-i/14)*0.7);t.el.style.transform=`translate(-50%,-50%) scale(${Math.max(0.3,1-i/14)})`;});requestAnimationFrame(tLoop);})();
+</script>
+</body>
+</html>

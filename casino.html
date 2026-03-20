@@ -99,6 +99,19 @@
   .game-card.gold  .game-cost { color:var(--neon-gold);   border:1px solid rgba(255,215,0,0.3);  background:rgba(255,215,0,0.08); }
   .game-soon { position:absolute; top:14px; right:14px; font-family:'Orbitron',monospace; font-size:0.55rem; letter-spacing:0.2em; color:var(--text-dim); border:1px solid rgba(255,255,255,0.1); padding:3px 10px; border-radius:100px; }
 
+  /* ACHIEVEMENTS */
+  .ach-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; margin-bottom:36px; }
+  .ach-card { background:var(--bg-card); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:16px; display:flex; align-items:center; gap:14px; transition:all 0.3s; position:relative; overflow:hidden; }
+  .ach-card.unlocked { border-color:rgba(255,215,0,0.3); background:rgba(255,215,0,0.04); }
+  .ach-card.unlocked::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--neon-gold),transparent); }
+  .ach-icon { font-size:1.8rem; flex-shrink:0; filter:grayscale(1); transition:filter 0.3s; }
+  .ach-card.unlocked .ach-icon { filter:grayscale(0); }
+  .ach-info { display:flex; flex-direction:column; gap:2px; }
+  .ach-name { font-family:'Orbitron',monospace; font-size:0.65rem; font-weight:700; letter-spacing:0.1em; color:rgba(255,255,255,0.4); transition:color 0.3s; }
+  .ach-card.unlocked .ach-name { color:var(--neon-gold); }
+  .ach-desc { font-size:0.72rem; color:var(--text-dim); letter-spacing:0.05em; line-height:1.4; }
+  .ach-badge { position:absolute; top:10px; right:10px; font-family:'Orbitron',monospace; font-size:0.5rem; letter-spacing:0.15em; padding:3px 8px; border-radius:100px; background:rgba(255,215,0,0.15); color:var(--neon-gold); border:1px solid rgba(255,215,0,0.3); }
+
   /* LEADERBOARD */
   .lb-wrap { background:var(--bg-card); border:1px solid var(--glass-border); border-radius:16px; overflow:hidden; margin-bottom:40px; }
   .lb-head { display:grid; grid-template-columns:44px 1fr 120px 80px; padding:12px 20px; background:rgba(0,245,255,0.04); border-bottom:1px solid rgba(0,245,255,0.08); }
@@ -255,6 +268,10 @@
       <span class="game-soon">GREITAI</span>
     </a>
   </div>
+
+  <!-- ACHIEVEMENTS -->
+  <div class="section-title">◈ PASIEKIMAI ◈</div>
+  <div class="ach-grid" id="achGrid"></div>
 
   <!-- LEADERBOARD -->
   <div class="section-title">◈ TOP 10 ◈</div>
@@ -444,10 +461,63 @@ function logout() {
   window.location.href = 'login.html';
 }
 
+/* ── ACHIEVEMENTS ── */
+const ACHIEVEMENTS = [
+  { id:'first_login',   icon:'🎉', name:'PIRMAS PRISIJUNGIMAS', desc:'Sveiki atvykę į LiquidCasino!', check:()=>true },
+  { id:'coins_100',     icon:'💰', name:'PIRMIEJI 100',         desc:'Sukaupk 100 jevrejų',           check:()=>user.coins>=100 },
+  { id:'coins_1000',    icon:'💎', name:'TŪKSTANTININKAS',      desc:'Sukaupk 1000 jevrejų',          check:()=>user.coins>=1000 },
+  { id:'coins_10000',   icon:'👑', name:'MILIJONIERIUS',        desc:'Sukaupk 10000 jevrejų',         check:()=>user.coins>=10000 },
+  { id:'level_5',       icon:'⭐', name:'VIDUTINIS',            desc:'Pasiek 5 lygį',                 check:()=>user.level>=5 },
+  { id:'level_10',      icon:'🌟', name:'LEGENDA',              desc:'Pasiek 10 lygį',                check:()=>user.level>=10 },
+  { id:'daily_3',       icon:'🔥', name:'ĮPROTIS',              desc:'3 dienų serija',                check:()=>parseInt(localStorage.getItem('lc_streak')||0)>=3 },
+  { id:'daily_7',       icon:'🗓️', name:'SAVAITĖ',             desc:'7 dienų serija',                check:()=>parseInt(localStorage.getItem('lc_streak')||0)>=7 },
+  { id:'convert_first', icon:'⏱️', name:'LAIKO VALDOVAS',      desc:'Konvertuok laiką pirmą kartą',  check:()=>!!localStorage.getItem('lc_converted') },
+  { id:'case_open',     icon:'📦', name:'PIRMAS CASE',          desc:'Atidaryк pirmą case\'ą',        check:()=>!!localStorage.getItem('lc_case_hist') },
+  { id:'crash_play',    icon:'🚀', name:'KOSMONAUTAS',          desc:'Žaisk Crash žaidimą',           check:()=>!!localStorage.getItem('lc_crash_hist') },
+  { id:'plinko_play',   icon:'🎯', name:'PLINKO PRO',           desc:'Žaisk Plinko žaidimą',          check:()=>!!localStorage.getItem('lc_plinko_hist') },
+  { id:'slots_play',    icon:'🎰', name:'SLOT MEISTRAS',        desc:'Žaisk Slotus',                  check:()=>!!localStorage.getItem('lc_slots_hist') },
+  { id:'roulette_play', icon:'🎡', name:'RULETININKAS',         desc:'Žaisk Ruletę',                  check:()=>!!localStorage.getItem('lc_rou_hist') },
+  { id:'coin_streak',   icon:'🪙', name:'MONETOS KARALIUS',     desc:'Laimėk 5x Coin Flip iš eilės',  check:()=>parseInt(localStorage.getItem('lc_coin_streak')||0)>=5 },
+];
+
+function checkAchievements() {
+  const unlocked = JSON.parse(localStorage.getItem('lc_achievements')||'[]');
+  let newUnlocks = [];
+  ACHIEVEMENTS.forEach(a => {
+    if(!unlocked.includes(a.id) && a.check()) {
+      unlocked.push(a.id);
+      newUnlocks.push(a);
+    }
+  });
+  if(newUnlocks.length) {
+    localStorage.setItem('lc_achievements', JSON.stringify(unlocked));
+    newUnlocks.forEach(a => {
+      setTimeout(() => showToast('🏆 Pasiekimas: '+a.name,'ok'), 500);
+    });
+  }
+  renderAchievements(unlocked);
+}
+
+function renderAchievements(unlocked) {
+  document.getElementById('achGrid').innerHTML = ACHIEVEMENTS.map(a => {
+    const done = unlocked.includes(a.id);
+    return `<div class="ach-card ${done?'unlocked':''}">
+      <div class="ach-icon">${a.icon}</div>
+      <div class="ach-info">
+        <div class="ach-name">${a.name}</div>
+        <div class="ach-desc">${a.desc}</div>
+      </div>
+      ${done?'<div class="ach-badge">✓</div>':''}
+    </div>`;
+  }).join('');
+}
+
 /* ── Init ── */
 updateUI();
 checkDaily();
 loadLeaderboard();
+checkAchievements();
+localStorage.setItem('lc_converted', '1');
 
 /* ── BG Canvas ── */
 const bgC=document.getElementById('bgCanvas'),bgX=bgC.getContext('2d');
