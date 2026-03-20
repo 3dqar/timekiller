@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiquidCasino — Minos</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --neon-cyan:   #00f5ff;
+    --neon-purple: #bf00ff;
+    --neon-pink:   #ff0080;
+    --neon-green:  #00ff99;
+    --neon-red:    #ff2040;
+    --neon-gold:   #ffd700;
+    --bg-deep:     #020408;
+    --bg-card:     rgba(255,255,255,0.03);
+    --text-dim:    rgba(255,255,255,0.5);
+  }
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Rajdhani',sans-serif; background:var(--bg-deep); color:#fff; min-height:100vh; overflow-x:hidden; cursor:none; }
+  #cursor { position:fixed; pointer-events:none; z-index:99999; width:10px; height:10px; border-radius:50%; background:var(--neon-cyan); box-shadow:0 0 10px var(--neon-cyan); transform:translate(-50%,-50%); }
+  .trail { position:fixed; pointer-events:none; z-index:99998; border-radius:50%; transform:translate(-50%,-50%); }
+  #bgCanvas { position:fixed; inset:0; z-index:0; pointer-events:none; }
+  body::before { content:''; position:fixed; inset:0; z-index:1; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events:none; opacity:0.4; }
+  #main { position:relative; z-index:2; max-width:700px; margin:0 auto; padding:0 clamp(16px,4vw,40px) 80px; }
+
+  .topbar { display:flex; align-items:center; justify-content:space-between; padding:20px 0; gap:12px; flex-wrap:wrap; }
+  .back-btn { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.2em; color:var(--text-dim); border:1px solid rgba(255,255,255,0.1); background:transparent; padding:8px 18px; border-radius:100px; cursor:none; text-decoration:none; transition:all 0.3s; }
+  .back-btn:hover { color:var(--neon-cyan); border-color:rgba(0,245,255,0.4); }
+  .balance-pill { font-family:'Orbitron',monospace; font-size:0.75rem; letter-spacing:0.15em; color:var(--neon-gold); border:1px solid rgba(255,215,0,0.3); background:rgba(255,215,0,0.06); padding:8px 20px; border-radius:100px; }
+
+  .page-title { font-family:'Orbitron',monospace; font-weight:900; font-size:clamp(1.8rem,6vw,3rem); background:linear-gradient(135deg,var(--neon-red),var(--neon-purple)); background-size:200% 200%; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:gradShift 3s ease infinite; text-align:center; margin:10px 0 6px; }
+  @keyframes gradShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+  .page-sub { text-align:center; font-size:0.75rem; letter-spacing:0.3em; color:var(--text-dim); margin-bottom:24px; }
+
+  /* STATS ROW */
+  .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px; }
+  .stat-card { background:var(--bg-card); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:14px; text-align:center; }
+  .stat-label { font-family:'Orbitron',monospace; font-size:0.55rem; letter-spacing:0.3em; color:var(--text-dim); margin-bottom:4px; }
+  .stat-val { font-family:'Orbitron',monospace; font-size:1.1rem; font-weight:900; }
+  #statMult   { color:var(--neon-cyan); filter:drop-shadow(0 0 6px var(--neon-cyan)); }
+  #statWin    { color:var(--neon-green); }
+  #statSafe   { color:var(--neon-purple); }
+
+  /* GRID */
+  .grid-wrap { background:rgba(255,255,255,0.02); border:1px solid rgba(255,32,64,0.15); border-radius:18px; padding:20px; margin-bottom:20px; }
+  #mineGrid { display:grid; gap:8px; }
+  .tile {
+    aspect-ratio:1; border-radius:10px;
+    border:1px solid rgba(255,255,255,0.08);
+    background:rgba(255,255,255,0.04);
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.4rem; cursor:none;
+    transition:all 0.2s; position:relative; overflow:hidden;
+    user-select:none;
+  }
+  .tile::before { content:''; position:absolute; inset:0; background:rgba(0,245,255,0.06); opacity:0; transition:opacity 0.2s; border-radius:inherit; }
+  .tile:hover:not(.revealed):not(.dead) { border-color:rgba(0,245,255,0.4); transform:scale(1.05); box-shadow:0 0 14px rgba(0,245,255,0.15); }
+  .tile:hover:not(.revealed):not(.dead)::before { opacity:1; }
+  .tile.gem { border-color:rgba(0,245,255,0.4); background:rgba(0,245,255,0.08); box-shadow:0 0 16px rgba(0,245,255,0.2); animation:gemPop 0.4s cubic-bezier(.17,.67,.3,1.4); }
+  @keyframes gemPop { 0%{transform:scale(0.5)} 100%{transform:scale(1)} }
+  .tile.mine { border-color:rgba(255,32,64,0.6); background:rgba(255,32,64,0.1); box-shadow:0 0 20px rgba(255,32,64,0.3); animation:mineExplode 0.5s ease; }
+  @keyframes mineExplode { 0%{transform:scale(1)} 30%{transform:scale(1.3)} 100%{transform:scale(1)} }
+  .tile.revealed { cursor:default; }
+  .tile.hidden-mine { border-color:rgba(255,32,64,0.3); background:rgba(255,32,64,0.06); }
+
+  /* CONTROLS */
+  .controls { background:var(--bg-card); border:1px solid rgba(255,32,64,0.12); border-radius:16px; padding:22px; margin-bottom:20px; display:flex; flex-direction:column; gap:14px; }
+  .ctrl-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .ctrl-label { font-family:'Orbitron',monospace; font-size:0.6rem; letter-spacing:0.3em; color:var(--text-dim); min-width:70px; }
+
+  .mines-btns { display:flex; gap:6px; flex-wrap:wrap; }
+  .mines-btn { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.1em; padding:7px 14px; border-radius:100px; border:1px solid rgba(255,32,64,0.3); background:transparent; color:rgba(255,32,64,0.7); cursor:none; transition:all 0.2s; }
+  .mines-btn.active { border-color:var(--neon-red); color:var(--neon-red); background:rgba(255,32,64,0.1); box-shadow:0 0 10px rgba(255,32,64,0.2); }
+  .mines-btn:hover { border-color:var(--neon-red); color:var(--neon-red); }
+
+  .amount-presets { display:flex; gap:6px; flex-wrap:wrap; }
+  .preset-btn { font-family:'Orbitron',monospace; font-size:0.6rem; letter-spacing:0.1em; padding:6px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.12); background:transparent; color:var(--text-dim); cursor:none; transition:all 0.2s; }
+  .preset-btn:hover { border-color:rgba(255,215,0,0.4); color:var(--neon-gold); }
+  #betInput { font-family:'Orbitron',monospace; font-size:0.85rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:8px 14px; border-radius:10px; outline:none; width:110px; transition:all 0.2s; }
+  #betInput:focus { border-color:rgba(255,32,64,0.5); }
+
+  /* BUTTONS */
+  .btn-row { display:flex; gap:10px; }
+  .start-btn { flex:1; font-family:'Orbitron',monospace; font-size:0.8rem; letter-spacing:0.25em; font-weight:700; color:#000; background:var(--neon-red); border:none; padding:14px; border-radius:100px; cursor:none; transition:all 0.3s; box-shadow:0 0 20px rgba(255,32,64,0.35); }
+  .start-btn:hover { box-shadow:0 0 36px rgba(255,32,64,0.6); transform:scale(1.02); }
+  .start-btn:disabled { opacity:0.4; transform:none; }
+  .cashout-btn { flex:1; font-family:'Orbitron',monospace; font-size:0.8rem; letter-spacing:0.25em; font-weight:700; color:#000; background:var(--neon-green); border:none; padding:14px; border-radius:100px; cursor:none; transition:all 0.3s; box-shadow:0 0 20px rgba(0,255,153,0.35); display:none; }
+  .cashout-btn:hover { box-shadow:0 0 36px rgba(0,255,153,0.6); transform:scale(1.02); }
+  .cashout-btn.show { display:block; }
+
+  /* RESULT OVERLAY */
+  #resultOverlay { display:none; position:absolute; inset:0; background:rgba(2,4,8,0.85); border-radius:18px; align-items:center; justify-content:center; flex-direction:column; gap:12px; backdrop-filter:blur(4px); z-index:10; }
+  #resultOverlay.show { display:flex; }
+  #overlayIcon { font-size:3rem; animation:iconPop 0.5s cubic-bezier(.17,.67,.3,1.4); }
+  @keyframes iconPop { 0%{transform:scale(0)} 100%{transform:scale(1)} }
+  #overlayTitle { font-family:'Orbitron',monospace; font-size:1.4rem; font-weight:900; }
+  #overlayCoins { font-family:'Orbitron',monospace; font-size:0.9rem; letter-spacing:0.2em; }
+
+  /* MULT TABLE */
+  .mult-title { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.4em; color:var(--text-dim); margin-bottom:14px; margin-top:8px; }
+  .mult-scroll { display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:28px; }
+  .mult-step { flex-shrink:0; background:var(--bg-card); border:1px solid rgba(0,245,255,0.15); border-radius:10px; padding:10px 14px; text-align:center; min-width:70px; }
+  .mult-step-num { font-size:0.65rem; color:var(--text-dim); letter-spacing:0.1em; }
+  .mult-step-val { font-family:'Orbitron',monospace; font-size:0.85rem; font-weight:700; color:var(--neon-cyan); }
+
+  #toast { position:fixed; bottom:30px; left:50%; transform:translateX(-50%) translateY(100px); z-index:9999; font-family:'Orbitron',monospace; font-size:0.7rem; letter-spacing:0.2em; padding:12px 28px; border-radius:100px; transition:transform 0.4s cubic-bezier(.17,.67,.3,1.4),opacity 0.4s; opacity:0; pointer-events:none; white-space:nowrap; }
+  #toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+  #toast.ok  { background:rgba(0,255,153,0.12); border:1px solid rgba(0,255,153,0.4); color:var(--neon-green); }
+  #toast.err { background:rgba(255,32,64,0.12);  border:1px solid rgba(255,32,64,0.4);  color:var(--neon-red); }
+
+  footer { text-align:center; font-size:0.65rem; letter-spacing:0.2em; color:rgba(255,255,255,0.12); border-top:1px solid rgba(255,255,255,0.04); padding:20px; margin-top:20px; }
+  ::-webkit-scrollbar{width:4px;height:4px} ::-webkit-scrollbar-thumb{background:var(--neon-purple);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="cursor"></div>
+<canvas id="bgCanvas"></canvas>
+<div id="toast"></div>
+
+<div id="main">
+  <div class="topbar">
+    <a href="casino.html" class="back-btn">← ATGAL</a>
+    <div class="balance-pill" id="balPill">⬡ 0 JEVREJŲ</div>
+  </div>
+
+  <div class="page-title">MINOS</div>
+  <div class="page-sub">◈ ATRAСК BRANGAKMENIUS — IŠVENK MINŲ ◈</div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">MULTIPLIER</div><div class="stat-val" id="statMult">1.00x</div></div>
+    <div class="stat-card"><div class="stat-label">LAIMĖJIMAS</div><div class="stat-val" id="statWin">0</div></div>
+    <div class="stat-card"><div class="stat-label">SAUGUS</div><div class="stat-val" id="statSafe">0/0</div></div>
+  </div>
+
+  <div class="grid-wrap" style="position:relative;">
+    <div id="mineGrid"></div>
+    <div id="resultOverlay">
+      <div id="overlayIcon"></div>
+      <div id="overlayTitle"></div>
+      <div id="overlayCoins"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="ctrl-row">
+      <span class="ctrl-label">MINOS</span>
+      <div class="mines-btns">
+        <button class="mines-btn active" onclick="setMines(1)">1</button>
+        <button class="mines-btn"        onclick="setMines(3)">3</button>
+        <button class="mines-btn"        onclick="setMines(5)">5</button>
+        <button class="mines-btn"        onclick="setMines(10)">10</button>
+        <button class="mines-btn"        onclick="setMines(15)">15</button>
+        <button class="mines-btn"        onclick="setMines(20)">20</button>
+      </div>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">SUMA</span>
+      <div class="amount-presets">
+        <button class="preset-btn" onclick="setBet(10)">10</button>
+        <button class="preset-btn" onclick="setBet(25)">25</button>
+        <button class="preset-btn" onclick="setBet(50)">50</button>
+        <button class="preset-btn" onclick="setBet(100)">100</button>
+      </div>
+      <input id="betInput" type="number" min="1" value="10" />
+    </div>
+    <div class="btn-row">
+      <button class="start-btn"   id="startBtn"   onclick="startGame()">💣 PRADĖTI</button>
+      <button class="cashout-btn" id="cashoutBtn"  onclick="cashout()">💰 PASIIMTI</button>
+    </div>
+  </div>
+
+  <div class="mult-title">◈ MULTIPLIERIAI PAGAL ATRASTUS BRANGAKMENIUS ◈</div>
+  <div class="mult-scroll" id="multScroll"></div>
+
+  <footer>LIQUID CASINO &nbsp;·&nbsp; Minos &nbsp;·&nbsp; 2026</footer>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycby_zcF3Oh62j-N_-iHqv_8Mnpo-H776lNc5f9Wr0zsgzgKW-Ugt2QsBWQo8ml_bnCKkYA/exec';
+let user = JSON.parse(localStorage.getItem('lc_user') || 'null');
+if (!user) window.location.href = 'login.html';
+
+const GRID = 25; // 5x5
+let mineCount  = 1;
+let bet        = 10;
+let gameActive = false;
+let minePositions = new Set();
+let revealed   = new Set();
+let gemsFound  = 0;
+let currentMult = 1;
+
+/* ── Multiplier calc ── */
+function calcMult(gems, mines) {
+  const safe = GRID - mines;
+  let mult = 1;
+  for (let i = 0; i < gems; i++) {
+    mult *= (safe - i) === 0 ? 1 : GRID / (safe - i);
+  }
+  return Math.max(1, parseFloat((mult * 0.97).toFixed(2)));
+}
+
+/* ── Build mult table ── */
+function buildMultTable() {
+  const safe = GRID - mineCount;
+  const steps = Math.min(safe, 10);
+  document.getElementById('multScroll').innerHTML = Array.from({length:steps},(_,i)=>{
+    const m = calcMult(i+1, mineCount);
+    return `<div class="mult-step"><div class="mult-step-num">${i+1} 💎</div><div class="mult-step-val">${m}x</div></div>`;
+  }).join('');
+}
+
+/* ── Set mines ── */
+function setMines(n) {
+  if (gameActive) return;
+  mineCount = n;
+  document.querySelectorAll('.mines-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  buildMultTable();
+  buildGrid();
+}
+
+function setBet(v) { document.getElementById('betInput').value = v; }
+
+/* ── Build grid ── */
+function buildGrid() {
+  const grid = document.getElementById('mineGrid');
+  const cols = 5;
+  grid.style.gridTemplateColumns = `repeat(${cols},1fr)`;
+  grid.innerHTML = Array.from({length:GRID},(_,i)=>`
+    <div class="tile" id="tile-${i}" onclick="reveal(${i})"></div>`).join('');
+}
+
+/* ── Start game ── */
+function startGame() {
+  bet = parseInt(document.getElementById('betInput').value)||0;
+  if (bet < 1) { showToast('Įvesk statymą!','err'); return; }
+  if (bet > user.coins) { showToast('Nepakankamai jevrejų!','err'); return; }
+
+  user.coins -= bet;
+  saveUser(); updateBal();
+
+  // Place mines
+  minePositions = new Set();
+  while (minePositions.size < mineCount) {
+    minePositions.add(Math.floor(Math.random()*GRID));
+  }
+
+  revealed   = new Set();
+  gemsFound  = 0;
+  currentMult = 1;
+  gameActive  = true;
+
+  buildGrid();
+  hideOverlay();
+
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('cashoutBtn').classList.add('show');
+  document.getElementById('betInput').disabled = true;
+
+  updateStats();
+}
+
+/* ── Reveal tile ── */
+function reveal(i) {
+  if (!gameActive || revealed.has(i)) return;
+  revealed.add(i);
+  const tile = document.getElementById('tile-'+i);
+
+  if (minePositions.has(i)) {
+    // BOOM
+    tile.classList.add('mine','revealed');
+    tile.textContent = '💣';
+    gameActive = false;
+
+    // Reveal all mines
+    setTimeout(() => {
+      minePositions.forEach(m => {
+        if (m !== i) {
+          const t = document.getElementById('tile-'+m);
+          t.classList.add('hidden-mine','revealed');
+          t.textContent = '💣';
+        }
+      });
+      showOverlay('💥', 'MINA!', -bet, false);
+    }, 400);
+
+    document.getElementById('cashoutBtn').classList.remove('show');
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('betInput').disabled = false;
+
+  } else {
+    // GEM
+    gemsFound++;
+    tile.classList.add('gem','revealed');
+    tile.textContent = '💎';
+    currentMult = calcMult(gemsFound, mineCount);
+    updateStats();
+
+    // Auto cashout if all gems found
+    const maxGems = GRID - mineCount;
+    if (gemsFound >= maxGems) {
+      setTimeout(cashout, 300);
+    }
+  }
+}
+
+/* ── Cashout ── */
+function cashout() {
+  if (!gameActive) return;
+  gameActive = false;
+  const won    = Math.floor(bet * currentMult);
+  const profit = won - bet;
+  user.coins  += won;
+  user.xp     += Math.floor(bet/5);
+  user.level   = getLevel(user.xp);
+  saveUser(); updateBal();
+
+  // Reveal mines
+  minePositions.forEach(m => {
+    if (!revealed.has(m)) {
+      const t = document.getElementById('tile-'+m);
+      t.classList.add('hidden-mine','revealed');
+      t.textContent = '💣';
+    }
+  });
+
+  showOverlay('💰', 'PASIĖMEI!', profit, true);
+  document.getElementById('cashoutBtn').classList.remove('show');
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('betInput').disabled = false;
+
+  if (profit > 0) showToast('+'+profit+' jevrejų! 🎉','ok');
+}
+
+/* ── Overlay ── */
+function showOverlay(icon, title, profit, win) {
+  const o = document.getElementById('resultOverlay');
+  document.getElementById('overlayIcon').textContent  = icon;
+  document.getElementById('overlayTitle').textContent = title;
+  document.getElementById('overlayTitle').style.color = win?'var(--neon-green)':'var(--neon-red)';
+  document.getElementById('overlayCoins').textContent = (profit>=0?'+':'')+profit+' JEVREJŲ';
+  document.getElementById('overlayCoins').style.color = profit>=0?'var(--neon-green)':'var(--neon-red)';
+  o.classList.add('show');
+  setTimeout(() => o.classList.remove('show'), 3000);
+}
+function hideOverlay() { document.getElementById('resultOverlay').classList.remove('show'); }
+
+/* ── Stats ── */
+function updateStats() {
+  const won = Math.floor(bet * currentMult);
+  document.getElementById('statMult').textContent  = currentMult.toFixed(2)+'x';
+  document.getElementById('statWin').textContent   = won;
+  document.getElementById('statSafe').textContent  = gemsFound+'/'+(GRID-mineCount);
+}
+
+function getLevel(xp){const l=[0,100,300,600,1000,1500,2200,3000,4000,5500];let lv=1;for(let i=0;i<l.length;i++){if(xp>=l[i])lv=i+1;}return lv;}
+function updateBal(){document.getElementById('balPill').textContent='⬡ '+user.coins.toLocaleString()+' JEVREJŲ';}
+async function saveUser(){localStorage.setItem('lc_user',JSON.stringify(user));try{await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'update',username:user.username,coins:user.coins,xp:user.xp,level:user.level})});}catch(e){}}
+function showToast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;clearTimeout(t._timer);t._timer=setTimeout(()=>{t.className=type;},3000);}
+
+/* ── Init ── */
+buildGrid();
+buildMultTable();
+updateBal();
+updateStats();
+
+/* ── BG ── */
+const bgC=document.getElementById('bgCanvas'),bgX=bgC.getContext('2d');
+function resizeBg(){bgC.width=innerWidth;bgC.height=innerHeight;}resizeBg();addEventListener('resize',resizeBg);
+const CLR=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const pts=Array.from({length:55},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.4+0.3,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3-.12,c:CLR[Math.floor(Math.random()*4)],a:Math.random()*.5+.2,p:Math.random()*Math.PI*2}));
+(function bgLoop(){bgX.clearRect(0,0,bgC.width,bgC.height);let g=bgX.createRadialGradient(bgC.width*.2,bgC.height*.3,0,bgC.width*.2,bgC.height*.3,bgC.width*.6);g.addColorStop(0,'rgba(0,87,255,0.05)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);g=bgX.createRadialGradient(bgC.width*.8,bgC.height*.7,0,bgC.width*.8,bgC.height*.7,bgC.width*.5);g.addColorStop(0,'rgba(191,0,255,0.05)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.p+=.04;if(p.y<-10){p.y=bgC.height+10;p.x=Math.random()*bgC.width;}if(p.x<-10)p.x=bgC.width+10;if(p.x>bgC.width+10)p.x=-10;bgX.save();bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.shadowBlur=10;bgX.shadowColor=p.c;bgX.globalAlpha=p.a*(.6+.4*Math.sin(p.p));bgX.fillStyle=p.c;bgX.fill();bgX.restore();});requestAnimationFrame(bgLoop);})();
+
+/* ── Cursor ── */
+const cursorEl=document.getElementById('cursor');
+const tColors=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const tPool=[];
+for(let i=0;i<16;i++){const t=document.createElement('div');t.className='trail';const s=Math.max(3,9-i*0.35);t.style.cssText=`width:${s}px;height:${s}px;opacity:0;background:${tColors[i%4]};box-shadow:0 0 ${s*1.5}px ${tColors[i%4]};`;document.body.appendChild(t);tPool.push({el:t});}
+let mX=0,mY=0;const tPos=Array(16).fill(null).map(()=>({x:0,y:0}));
+document.addEventListener('mousemove',e=>{mX=e.clientX;mY=e.clientY;cursorEl.style.left=mX+'px';cursorEl.style.top=mY+'px';});
+(function tLoop(){tPos.unshift({x:mX,y:mY});tPos.pop();tPool.forEach((t,i)=>{t.el.style.left=tPos[i].x+'px';t.el.style.top=tPos[i].y+'px';t.el.style.opacity=Math.max(0,(1-i/16)*0.7);t.el.style.transform=`translate(-50%,-50%) scale(${Math.max(0.3,1-i/16)})`;});requestAnimationFrame(tLoop);})();
+</script>
+</body>
+</html>
