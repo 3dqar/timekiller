@@ -374,7 +374,7 @@ async function saveUser() {
   try {
     await fetch(API, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action:'update', username:user.username, coins:user.coins, xp:user.xp, level:user.level })
     });
   } catch(e) {}
@@ -385,7 +385,7 @@ async function loadLeaderboard() {
   try {
     const res = await fetch(API, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'leaderboard' })
     });
     const d = await res.json();

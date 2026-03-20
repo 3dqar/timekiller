@@ -304,7 +304,10 @@ function drawBall(bAngle, bR) {
   wCtx.fillStyle=bg; wCtx.shadowBlur=14; wCtx.shadowColor='#fff'; wCtx.fill(); wCtx.shadowBlur=0;
 }
 
-function render() { drawWheel(wheelAngle); if(animating || targetNum!==null) drawBall(ballAngle, ballR); }
+function render() {
+  drawWheel(wheelAngle);
+  if (animating || targetNum !== null) drawBall(ballAngle, ballR);
+}
 render();
 
 /* ── SPIN ── */
@@ -324,41 +327,43 @@ function spin() {
   user.coins -= bet;
   saveUser(); updateBal();
 
-  // pick result
   const resultN = WHEEL_NUMS[Math.floor(Math.random() * WHEEL_NUMS.length)];
   targetNum = resultN;
 
-  // find target angle on wheel
   const sliceA = (Math.PI*2) / WHEEL_NUMS.length;
   const idx = WHEEL_NUMS.indexOf(resultN);
-  const finalWheelAngle = wheelAngle + Math.PI*8 + (Math.PI*2 - idx*sliceA - sliceA/2 - wheelAngle%(Math.PI*2));
+  const extraSpins = Math.PI * 10;
+  const targetWheelAngle = wheelAngle + extraSpins + (Math.PI*2 - (idx * sliceA + sliceA/2) - (wheelAngle % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
 
-  const dur = 5000 + Math.random()*2000;
+  const dur = 5000 + Math.random() * 2000;
   const startTime = performance.now();
-  const startWA = wheelAngle;
-  let startBA = ballAngle;
-  ballR = R - 14;
+  const startWA   = wheelAngle;
+  const startBA   = Math.random() * Math.PI * 2;
+  ballAngle = startBA;
+  ballR     = R - 14;
 
-  function animate(now) {
-    const t = Math.min(1, (now - startTime) / dur);
-    const ease = t < 0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+  function animFrame(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(1, elapsed / dur);
+    const ease = 1 - Math.pow(1 - t, 4);
 
-    wheelAngle = startWA + (finalWheelAngle - startWA) * ease;
-    ballAngle  = startBA - (Math.PI*16) * (1 - Math.pow(1-t, 2));
-    ballR      = (R-14) + (IR+20-(R-14)) * Math.pow(t, 2.5);
+    wheelAngle = startWA + (targetWheelAngle - startWA) * ease;
+    ballAngle  = startBA - Math.PI * 20 * ease;
+    ballR      = (R - 14) - ((R - 14) - (IR + 22)) * Math.pow(t, 1.8);
 
     render();
 
-    if (t < 1) { requestAnimationFrame(animate); }
-    else {
-      animating = false;
-      wheelAngle = finalWheelAngle;
-      ballR = IR + 20;
+    if (t < 1) {
+      requestAnimationFrame(animFrame);
+    } else {
+      animating  = false;
+      wheelAngle = targetWheelAngle;
+      ballR      = IR + 22;
       render();
       onResult(resultN, bet);
     }
   }
-  requestAnimationFrame(animate);
+  requestAnimationFrame(animFrame);
 }
 
 function onResult(num, bet) {
@@ -436,7 +441,7 @@ function getLevel(xp) {
 function updateBal() { document.getElementById('balPill').textContent='⬡ '+user.coins.toLocaleString()+' JEVREJŲ'; }
 async function saveUser() {
   localStorage.setItem('lc_user',JSON.stringify(user));
-  try { await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'update',username:user.username,coins:user.coins,xp:user.xp,level:user.level})}); } catch(e){}
+  try { await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'update',username:user.username,coins:user.coins,xp:user.xp,level:user.level})}); } catch(e){}
 }
 function showToast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;clearTimeout(t._timer);t._timer=setTimeout(()=>{t.className=type;},3000);}
 

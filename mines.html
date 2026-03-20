@@ -357,7 +357,7 @@ function updateStats() {
 
 function getLevel(xp){const l=[0,100,300,600,1000,1500,2200,3000,4000,5500];let lv=1;for(let i=0;i<l.length;i++){if(xp>=l[i])lv=i+1;}return lv;}
 function updateBal(){document.getElementById('balPill').textContent='⬡ '+user.coins.toLocaleString()+' JEVREJŲ';}
-async function saveUser(){localStorage.setItem('lc_user',JSON.stringify(user));try{await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'update',username:user.username,coins:user.coins,xp:user.xp,level:user.level})});}catch(e){}}
+async function saveUser(){localStorage.setItem('lc_user',JSON.stringify(user));try{await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'update',username:user.username,coins:user.coins,xp:user.xp,level:user.level})});}catch(e){}}
 function showToast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;clearTimeout(t._timer);t._timer=setTimeout(()=>{t.className=type;},3000);}
 
 /* ── Init ── */
