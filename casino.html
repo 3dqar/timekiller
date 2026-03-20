@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiquidCasino</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --neon-cyan:   #00f5ff;
+    --neon-purple: #bf00ff;
+    --neon-pink:   #ff0080;
+    --neon-green:  #00ff99;
+    --neon-red:    #ff2040;
+    --neon-gold:   #ffd700;
+    --bg-deep:     #020408;
+    --bg-card:     rgba(255,255,255,0.03);
+    --glass-border:rgba(0,245,255,0.15);
+    --text-dim:    rgba(255,255,255,0.5);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Rajdhani', sans-serif; background: var(--bg-deep); color: #fff; min-height: 100vh; overflow-x: hidden; cursor: none; }
+
+  #cursor { position:fixed; pointer-events:none; z-index:99999; width:10px; height:10px; border-radius:50%; background:var(--neon-cyan); box-shadow:0 0 10px var(--neon-cyan); transform:translate(-50%,-50%); }
+  .trail { position:fixed; pointer-events:none; z-index:99998; border-radius:50%; transform:translate(-50%,-50%); }
+  #bgCanvas { position:fixed; inset:0; z-index:0; pointer-events:none; }
+  body::before { content:''; position:fixed; inset:0; z-index:1; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events:none; opacity:0.4; }
+  #main { position:relative; z-index:2; max-width:1200px; margin:0 auto; padding:0 clamp(16px,4vw,40px) 80px; }
+
+  /* TOPBAR */
+  .topbar { display:flex; align-items:center; justify-content:space-between; padding:20px 0; flex-wrap:wrap; gap:12px; }
+  .logo { font-family:'Orbitron',monospace; font-weight:900; font-size:clamp(1.2rem,4vw,1.8rem); background:linear-gradient(135deg,var(--neon-cyan),var(--neon-purple),var(--neon-pink)); background-size:300% 300%; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:gradShift 4s ease infinite; letter-spacing:0.05em; }
+  @keyframes gradShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+  .topbar-right { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .user-badge { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.2em; color:var(--text-dim); border:1px solid rgba(255,255,255,0.1); padding:6px 16px; border-radius:100px; }
+  .logout-btn { font-family:'Orbitron',monospace; font-size:0.6rem; letter-spacing:0.2em; color:var(--neon-red); border:1px solid rgba(255,32,64,0.3); background:transparent; padding:6px 14px; border-radius:100px; cursor:none; transition:all 0.3s; }
+  .logout-btn:hover { background:rgba(255,32,64,0.1); }
+
+  /* BALANCE SECTION */
+  .balance-section { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin:24px 0; }
+  .bal-card { background:var(--bg-card); border:1px solid var(--glass-border); border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:6px; position:relative; overflow:hidden; transition:all 0.3s; }
+  .bal-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; opacity:0.6; }
+  .bal-card.coins::after { background:linear-gradient(90deg,transparent,var(--neon-gold),transparent); }
+  .bal-card.time::after  { background:linear-gradient(90deg,transparent,var(--neon-cyan),transparent); }
+  .bal-card.xp::after    { background:linear-gradient(90deg,transparent,var(--neon-purple),transparent); }
+  .bal-card.level::after { background:linear-gradient(90deg,transparent,var(--neon-pink),transparent); }
+  .bal-label { font-family:'Orbitron',monospace; font-size:0.6rem; letter-spacing:0.35em; color:var(--text-dim); }
+  .bal-value { font-family:'Orbitron',monospace; font-size:clamp(1.4rem,4vw,2rem); font-weight:900; }
+  .bal-card.coins .bal-value { color:var(--neon-gold); filter:drop-shadow(0 0 8px var(--neon-gold)); }
+  .bal-card.time  .bal-value { color:var(--neon-cyan); filter:drop-shadow(0 0 8px var(--neon-cyan)); font-size:clamp(1rem,3vw,1.4rem); }
+  .bal-card.xp    .bal-value { color:var(--neon-purple); filter:drop-shadow(0 0 8px var(--neon-purple)); }
+  .bal-card.level .bal-value { color:var(--neon-pink); filter:drop-shadow(0 0 8px var(--neon-pink)); }
+  .bal-sub { font-size:0.7rem; color:var(--text-dim); letter-spacing:0.1em; }
+
+  /* XP BAR */
+  .xp-bar-wrap { margin:0 0 24px; }
+  .xp-bar-label { display:flex; justify-content:space-between; font-family:'Orbitron',monospace; font-size:0.6rem; letter-spacing:0.2em; color:var(--text-dim); margin-bottom:8px; }
+  .xp-bar-bg { background:rgba(255,255,255,0.06); border-radius:100px; height:6px; overflow:hidden; }
+  .xp-bar-fill { height:100%; border-radius:100px; background:linear-gradient(90deg,var(--neon-purple),var(--neon-pink)); box-shadow:0 0 10px rgba(191,0,255,0.4); transition:width 1s ease; }
+
+  /* CONVERT SECTION */
+  .convert-box { background:var(--bg-card); border:1px solid rgba(0,245,255,0.12); border-radius:16px; padding:20px 24px; margin-bottom:28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+  .convert-info { display:flex; flex-direction:column; gap:4px; }
+  .convert-title { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.3em; color:var(--text-dim); }
+  .convert-rate  { font-family:'Orbitron',monospace; font-size:0.9rem; color:var(--neon-cyan); }
+  .convert-btn { font-family:'Orbitron',monospace; font-size:0.7rem; letter-spacing:0.2em; color:#000; background:var(--neon-cyan); border:none; padding:10px 24px; border-radius:100px; cursor:none; font-weight:700; transition:all 0.3s; box-shadow:0 0 16px rgba(0,245,255,0.3); white-space:nowrap; }
+  .convert-btn:hover { box-shadow:0 0 28px rgba(0,245,255,0.6); transform:scale(1.04); }
+  .convert-avail { font-size:0.75rem; color:var(--text-dim); }
+
+  /* DAILY REWARD */
+  .daily-box { background:linear-gradient(135deg,rgba(255,215,0,0.06),rgba(255,0,128,0.04)); border:1px solid rgba(255,215,0,0.25); border-radius:16px; padding:20px 24px; margin-bottom:28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+  .daily-info { display:flex; flex-direction:column; gap:4px; }
+  .daily-title { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.3em; color:var(--neon-gold); }
+  .daily-desc  { font-size:0.8rem; color:var(--text-dim); letter-spacing:0.1em; }
+  .daily-btn { font-family:'Orbitron',monospace; font-size:0.7rem; letter-spacing:0.2em; color:#000; background:var(--neon-gold); border:none; padding:10px 24px; border-radius:100px; cursor:none; font-weight:700; transition:all 0.3s; }
+  .daily-btn:hover { filter:drop-shadow(0 0 12px var(--neon-gold)); transform:scale(1.04); }
+  .daily-btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
+
+  /* SECTION TITLE */
+  .section-title { font-family:'Orbitron',monospace; font-size:0.7rem; letter-spacing:0.5em; color:var(--text-dim); margin-bottom:20px; }
+
+  /* GAMES GRID */
+  .games-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr)); gap:16px; margin-bottom:40px; }
+  .game-card { background:var(--bg-card); border:1px solid var(--glass-border); border-radius:18px; padding:24px 20px; cursor:none; transition:all 0.35s; position:relative; overflow:hidden; text-decoration:none; display:block; }
+  .game-card::before { content:''; position:absolute; inset:0; opacity:0; transition:opacity 0.35s; border-radius:inherit; }
+  .game-card:hover { transform:translateY(-6px) scale(1.02); }
+  .game-card.cyan  { border-color:rgba(0,245,255,0.2); } .game-card.cyan::before  { background:linear-gradient(135deg,rgba(0,245,255,0.07),transparent); } .game-card.cyan:hover  { border-color:rgba(0,245,255,0.5);  box-shadow:0 12px 40px rgba(0,0,0,0.5),0 0 28px rgba(0,245,255,0.15); } .game-card.cyan:hover::before { opacity:1; }
+  .game-card.purple{ border-color:rgba(191,0,255,0.2); } .game-card.purple::before{ background:linear-gradient(135deg,rgba(191,0,255,0.07),transparent); } .game-card.purple:hover{ border-color:rgba(191,0,255,0.5); box-shadow:0 12px 40px rgba(0,0,0,0.5),0 0 28px rgba(191,0,255,0.15); } .game-card.purple:hover::before{ opacity:1; }
+  .game-card.pink  { border-color:rgba(255,0,128,0.2); } .game-card.pink::before  { background:linear-gradient(135deg,rgba(255,0,128,0.07),transparent); } .game-card.pink:hover  { border-color:rgba(255,0,128,0.5);  box-shadow:0 12px 40px rgba(0,0,0,0.5),0 0 28px rgba(255,0,128,0.15); } .game-card.pink:hover::before  { opacity:1; }
+  .game-card.gold  { border-color:rgba(255,215,0,0.2); } .game-card.gold::before  { background:linear-gradient(135deg,rgba(255,215,0,0.07),transparent); } .game-card.gold:hover  { border-color:rgba(255,215,0,0.5);  box-shadow:0 12px 40px rgba(0,0,0,0.5),0 0 28px rgba(255,215,0,0.15); } .game-card.gold:hover::before  { opacity:1; }
+  .game-icon { font-size:2.4rem; margin-bottom:14px; display:block; }
+  .game-name { font-family:'Orbitron',monospace; font-size:0.9rem; font-weight:700; letter-spacing:0.08em; color:#fff; margin-bottom:8px; position:relative; z-index:1; }
+  .game-desc { font-size:0.8rem; color:var(--text-dim); letter-spacing:0.05em; line-height:1.5; position:relative; z-index:1; margin-bottom:14px; }
+  .game-cost { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.2em; padding:4px 12px; border-radius:100px; display:inline-block; }
+  .game-card.cyan  .game-cost { color:var(--neon-cyan);   border:1px solid rgba(0,245,255,0.3);   background:rgba(0,245,255,0.08); }
+  .game-card.purple .game-cost{ color:var(--neon-purple); border:1px solid rgba(191,0,255,0.3);  background:rgba(191,0,255,0.08); }
+  .game-card.pink  .game-cost { color:var(--neon-pink);   border:1px solid rgba(255,0,128,0.3);  background:rgba(255,0,128,0.08); }
+  .game-card.gold  .game-cost { color:var(--neon-gold);   border:1px solid rgba(255,215,0,0.3);  background:rgba(255,215,0,0.08); }
+  .game-soon { position:absolute; top:14px; right:14px; font-family:'Orbitron',monospace; font-size:0.55rem; letter-spacing:0.2em; color:var(--text-dim); border:1px solid rgba(255,255,255,0.1); padding:3px 10px; border-radius:100px; }
+
+  /* LEADERBOARD */
+  .lb-wrap { background:var(--bg-card); border:1px solid var(--glass-border); border-radius:16px; overflow:hidden; margin-bottom:40px; }
+  .lb-head { display:grid; grid-template-columns:44px 1fr 120px 80px; padding:12px 20px; background:rgba(0,245,255,0.04); border-bottom:1px solid rgba(0,245,255,0.08); }
+  .lb-th { font-family:'Orbitron',monospace; font-size:0.6rem; letter-spacing:0.3em; color:var(--text-dim); }
+  .lb-row { display:grid; grid-template-columns:44px 1fr 120px 80px; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,0.04); align-items:center; transition:background 0.2s; }
+  .lb-row:last-child { border-bottom:none; }
+  .lb-row:hover { background:rgba(255,255,255,0.02); }
+  .lb-rank { font-family:'Orbitron',monospace; font-size:0.75rem; font-weight:700; }
+  .lb-row:nth-child(1) .lb-rank { color:gold; }
+  .lb-row:nth-child(2) .lb-rank { color:silver; }
+  .lb-row:nth-child(3) .lb-rank { color:#cd7f32; }
+  .lb-name  { font-family:'Rajdhani',sans-serif; font-size:0.95rem; font-weight:600; color:#fff; }
+  .lb-coins { font-family:'Orbitron',monospace; font-size:0.75rem; color:var(--neon-gold); }
+  .lb-level { font-family:'Orbitron',monospace; font-size:0.7rem; color:var(--neon-purple); }
+  .lb-loading { text-align:center; padding:30px; font-family:'Orbitron',monospace; font-size:0.7rem; letter-spacing:0.3em; color:var(--text-dim); animation:pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+  /* TOAST */
+  #toast { position:fixed; bottom:30px; left:50%; transform:translateX(-50%) translateY(100px); z-index:9999; font-family:'Orbitron',monospace; font-size:0.7rem; letter-spacing:0.2em; padding:12px 28px; border-radius:100px; transition:transform 0.4s cubic-bezier(.17,.67,.3,1.4),opacity 0.4s; opacity:0; pointer-events:none; white-space:nowrap; }
+  #toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+  #toast.ok   { background:rgba(0,255,153,0.12); border:1px solid rgba(0,255,153,0.4); color:var(--neon-green); }
+  #toast.err  { background:rgba(255,32,64,0.12);  border:1px solid rgba(255,32,64,0.4);  color:var(--neon-red); }
+  #toast.info { background:rgba(0,245,255,0.1);   border:1px solid rgba(0,245,255,0.35); color:var(--neon-cyan); }
+
+  footer { text-align:center; font-size:0.65rem; letter-spacing:0.2em; color:rgba(255,255,255,0.12); border-top:1px solid rgba(255,255,255,0.04); padding:20px; }
+  ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-thumb{background:var(--neon-purple);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="cursor"></div>
+<canvas id="bgCanvas"></canvas>
+<div id="toast"></div>
+
+<div id="main">
+  <div class="topbar">
+    <div class="logo">LIQUID CASINO</div>
+    <div class="topbar-right">
+      <div class="user-badge" id="userBadge">...</div>
+      <button class="logout-btn" onclick="logout()">IŠEITI</button>
+    </div>
+  </div>
+
+  <!-- BALANCE -->
+  <div class="balance-section">
+    <div class="bal-card coins">
+      <div class="bal-label">JEVREJAI</div>
+      <div class="bal-value" id="balCoins">0</div>
+      <div class="bal-sub">monetos</div>
+    </div>
+    <div class="bal-card time">
+      <div class="bal-label">LAIKAS PUSLAPYJE</div>
+      <div class="bal-value" id="balTime">00:00:00</div>
+      <div class="bal-sub" id="balTimeCoins">0 jevrejų laukia</div>
+    </div>
+    <div class="bal-card xp">
+      <div class="bal-label">PATIRTIS</div>
+      <div class="bal-value" id="balXp">0</div>
+      <div class="bal-sub">XP taškai</div>
+    </div>
+    <div class="bal-card level">
+      <div class="bal-label">LYGIS</div>
+      <div class="bal-value" id="balLevel">1</div>
+      <div class="bal-sub" id="levelTitle">Pradedantysis</div>
+    </div>
+  </div>
+
+  <!-- XP BAR -->
+  <div class="xp-bar-wrap">
+    <div class="xp-bar-label">
+      <span id="xpBarLabel">LVL 1</span>
+      <span id="xpBarNext">0 / 100 XP</span>
+    </div>
+    <div class="xp-bar-bg">
+      <div class="xp-bar-fill" id="xpBarFill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- CONVERT -->
+  <div class="convert-box">
+    <div class="convert-info">
+      <div class="convert-title">◈ LAIKO KONVERTAVIMAS ◈</div>
+      <div class="convert-rate">10 sek = 1 jevrejas</div>
+      <div class="convert-avail" id="convertAvail">Turima: 0 sek → 0 jevrejų</div>
+    </div>
+    <button class="convert-btn" id="convertBtn" onclick="convertTime()">KONVERTUOTI</button>
+  </div>
+
+  <!-- DAILY -->
+  <div class="daily-box">
+    <div class="daily-info">
+      <div class="daily-title">◈ DIENOS ATLYGIS ◈</div>
+      <div class="daily-desc" id="dailyDesc">Gauk nemokamų jevrejų kiekvieną dieną!</div>
+    </div>
+    <button class="daily-btn" id="dailyBtn" onclick="claimDaily()">GAUTI 50 ✦</button>
+  </div>
+
+  <!-- GAMES -->
+  <div class="section-title">◈ ŽAIDIMAI ◈</div>
+  <div class="games-grid">
+    <a href="case.html" class="game-card cyan">
+      <span class="game-icon">📦</span>
+      <div class="game-name">CASE OPENING</div>
+      <div class="game-desc">Atidaryк case'ą ir laimėk jevrejų. Skirtingi dydžiai — skirtingos išmokos.</div>
+      <span class="game-cost">NUO 5 JEVREJŲ</span>
+    </a>
+    <a href="roulette.html" class="game-card purple">
+      <span class="game-icon">🎡</span>
+      <div class="game-name">RULETĖ</div>
+      <div class="game-desc">Sukasi kamuoliukas — laimėk iki 35x savo statymą.</div>
+      <span class="game-cost">NUO 10 JEVREJŲ</span>
+    </a>
+    <a href="plinko.html" class="game-card pink">
+      <span class="game-icon">🎯</span>
+      <div class="game-name">PLINKO</div>
+      <div class="game-desc">Leisk kamuoliuką žemyn ir žiūrėk kur nuskris. Iki 100x!</div>
+      <span class="game-cost">NUO 10 JEVREJŲ</span>
+      <span class="game-soon">GREITAI</span>
+    </a>
+    <a href="slots.html" class="game-card gold">
+      <span class="game-icon">🎰</span>
+      <div class="game-name">SLOTAI</div>
+      <div class="game-desc">Klasikiniai slotai su jackpot. Tris vienodus — laimi!</div>
+      <span class="game-cost">NUO 5 JEVREJŲ</span>
+      <span class="game-soon">GREITAI</span>
+    </a>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div class="section-title">◈ TOP 10 ◈</div>
+  <div class="lb-wrap">
+    <div class="lb-head">
+      <div class="lb-th">#</div>
+      <div class="lb-th">VARTOTOJAS</div>
+      <div class="lb-th">JEVREJAI</div>
+      <div class="lb-th">LYGIS</div>
+    </div>
+    <div id="lbBody"><div class="lb-loading">KRAUNAMA...</div></div>
+  </div>
+
+  <footer>LIQUID CASINO &nbsp;·&nbsp; Laiko valiuta &nbsp;·&nbsp; 2026</footer>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycby_zcF3Oh62j-N_-iHqv_8Mnpo-H776lNc5f9Wr0zsgzgKW-Ugt2QsBWQo8ml_bnCKkYA/exec';
+
+/* ── Auth check ── */
+let user = JSON.parse(localStorage.getItem('lc_user') || 'null');
+if (!user) window.location.href = 'login.html';
+
+document.getElementById('userBadge').textContent = user.username.toUpperCase();
+
+/* ── Level system ── */
+const LEVELS = [
+  { lvl:1,  name:'Pradedantysis',  xp:0    },
+  { lvl:2,  name:'Jevrejukas',     xp:100  },
+  { lvl:3,  name:'Lošėjas',        xp:300  },
+  { lvl:4,  name:'Azartiškas',     xp:600  },
+  { lvl:5,  name:'Profesionalas',  xp:1000 },
+  { lvl:6,  name:'Rizikingas',     xp:1500 },
+  { lvl:7,  name:'Turtingas',      xp:2200 },
+  { lvl:8,  name:'Kazino Karalius',xp:3000 },
+  { lvl:9,  name:'Legenda',        xp:4000 },
+  { lvl:10, name:'◈ DIEVAS ◈',    xp:5500 },
+];
+
+function getLevelInfo(xp) {
+  let current = LEVELS[0], next = LEVELS[1];
+  for (let i = 0; i < LEVELS.length; i++) {
+    if (xp >= LEVELS[i].xp) { current = LEVELS[i]; next = LEVELS[i+1] || null; }
+  }
+  return { current, next };
+}
+
+function updateUI() {
+  document.getElementById('balCoins').textContent = user.coins.toLocaleString();
+  document.getElementById('balXp').textContent    = user.xp.toLocaleString();
+  document.getElementById('balLevel').textContent = user.level;
+
+  const info = getLevelInfo(user.xp);
+  document.getElementById('levelTitle').textContent = info.current.name;
+
+  if (info.next) {
+    const pct = Math.min(100, Math.round((user.xp - info.current.xp) / (info.next.xp - info.current.xp) * 100));
+    document.getElementById('xpBarFill').style.width = pct + '%';
+    document.getElementById('xpBarLabel').textContent = 'LVL ' + info.current.lvl;
+    document.getElementById('xpBarNext').textContent  = user.xp + ' / ' + info.next.xp + ' XP';
+  } else {
+    document.getElementById('xpBarFill').style.width = '100%';
+    document.getElementById('xpBarNext').textContent  = 'MAX LYGIS ◈';
+  }
+
+  const pendingCoins = Math.floor(sessionSeconds / 10);
+  document.getElementById('convertAvail').textContent = `Turima: ${sessionSeconds} sek → ${pendingCoins} jevrejų`;
+  document.getElementById('balTimeCoins').textContent = `${pendingCoins} jevrejų laukia`;
+}
+
+/* ── Time tracking ── */
+let sessionSeconds = parseInt(localStorage.getItem('lc_seconds') || '0');
+
+function formatTime(s) {
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+setInterval(() => {
+  sessionSeconds++;
+  localStorage.setItem('lc_seconds', sessionSeconds);
+  document.getElementById('balTime').textContent = formatTime(sessionSeconds);
+  const pending = Math.floor(sessionSeconds / 10);
+  document.getElementById('balTimeCoins').textContent = `${pending} jevrejų laukia`;
+  document.getElementById('convertAvail').textContent = `Turima: ${sessionSeconds} sek → ${pending} jevrejų`;
+}, 1000);
+
+/* ── Convert time ── */
+function convertTime() {
+  const coins = Math.floor(sessionSeconds / 10);
+  if (coins < 1) { showToast('Per mažai laiko! (min 10 sek)', 'err'); return; }
+  const leftover = sessionSeconds % 10;
+  sessionSeconds = leftover;
+  localStorage.setItem('lc_seconds', leftover);
+  user.coins += coins;
+  user.xp    += Math.floor(coins / 2);
+  user.level  = getLevelInfo(user.xp).current.lvl;
+  saveUser();
+  showToast(`+${coins} jevrejų! 🎉`, 'ok');
+  updateUI();
+}
+
+/* ── Daily reward ── */
+function claimDaily() {
+  const today    = new Date().toDateString();
+  const lastDay  = localStorage.getItem('lc_daily');
+  if (lastDay === today) {
+    showToast('Jau paėmei šios dienos atlygį!', 'err');
+    return;
+  }
+  const streak = parseInt(localStorage.getItem('lc_streak') || '0') + 1;
+  const reward = Math.min(50 + (streak - 1) * 10, 200);
+  localStorage.setItem('lc_daily',  today);
+  localStorage.setItem('lc_streak', streak);
+  user.coins += reward;
+  user.xp    += 20;
+  user.level  = getLevelInfo(user.xp).current.lvl;
+  saveUser();
+  showToast(`+${reward} jevrejų! Serija: ${streak} 🔥`, 'ok');
+  document.getElementById('dailyBtn').disabled = true;
+  document.getElementById('dailyDesc').textContent = `Ateis rytoj. Serija: ${streak} dienų 🔥`;
+  updateUI();
+}
+
+function checkDaily() {
+  const today   = new Date().toDateString();
+  const lastDay = localStorage.getItem('lc_daily');
+  const streak  = parseInt(localStorage.getItem('lc_streak') || '0');
+  if (lastDay === today) {
+    document.getElementById('dailyBtn').disabled = true;
+    document.getElementById('dailyDesc').textContent = `Ateis rytoj. Serija: ${streak} dienų 🔥`;
+  } else {
+    const reward = Math.min(50 + streak * 10, 200);
+    document.getElementById('dailyBtn').textContent = `GAUTI ${reward} ✦`;
+  }
+}
+
+/* ── Save user ── */
+async function saveUser() {
+  localStorage.setItem('lc_user', JSON.stringify(user));
+  try {
+    await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action:'update', username:user.username, coins:user.coins, xp:user.xp, level:user.level })
+    });
+  } catch(e) {}
+}
+
+/* ── Leaderboard ── */
+async function loadLeaderboard() {
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'leaderboard' })
+    });
+    const d = await res.json();
+    if (d.ok && d.leaderboard.length) {
+      const medals = ['🥇','🥈','🥉'];
+      document.getElementById('lbBody').innerHTML = d.leaderboard.map((u,i) => `
+        <div class="lb-row">
+          <div class="lb-rank">${medals[i] || '#'+(i+1)}</div>
+          <div class="lb-name">${u.username}</div>
+          <div class="lb-coins">${Number(u.coins).toLocaleString()}</div>
+          <div class="lb-level">LVL ${u.level}</div>
+        </div>`).join('');
+    } else {
+      document.getElementById('lbBody').innerHTML = '<div class="lb-loading">Dar nėra duomenų</div>';
+    }
+  } catch(e) {
+    document.getElementById('lbBody').innerHTML = '<div class="lb-loading">Nepavyko įkelti</div>';
+  }
+}
+
+/* ── Toast ── */
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `show ${type}`;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = type; }, 3000);
+}
+
+/* ── Logout ── */
+function logout() {
+  localStorage.removeItem('lc_user');
+  window.location.href = 'login.html';
+}
+
+/* ── Init ── */
+updateUI();
+checkDaily();
+loadLeaderboard();
+
+/* ── BG Canvas ── */
+const bgC=document.getElementById('bgCanvas'),bgX=bgC.getContext('2d');
+function resizeBg(){bgC.width=innerWidth;bgC.height=innerHeight;}resizeBg();addEventListener('resize',resizeBg);
+const CLR=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const pts=Array.from({length:60},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.4+0.3,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3-.12,c:CLR[Math.floor(Math.random()*4)],a:Math.random()*.5+.2,p:Math.random()*Math.PI*2}));
+(function bgLoop(){bgX.clearRect(0,0,bgC.width,bgC.height);let g=bgX.createRadialGradient(bgC.width*.2,bgC.height*.3,0,bgC.width*.2,bgC.height*.3,bgC.width*.6);g.addColorStop(0,'rgba(0,87,255,0.05)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);g=bgX.createRadialGradient(bgC.width*.8,bgC.height*.7,0,bgC.width*.8,bgC.height*.7,bgC.width*.5);g.addColorStop(0,'rgba(191,0,255,0.05)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.p+=.04;if(p.y<-10){p.y=bgC.height+10;p.x=Math.random()*bgC.width;}if(p.x<-10)p.x=bgC.width+10;if(p.x>bgC.width+10)p.x=-10;bgX.save();bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.shadowBlur=10;bgX.shadowColor=p.c;bgX.globalAlpha=p.a*(.6+.4*Math.sin(p.p));bgX.fillStyle=p.c;bgX.fill();bgX.restore();});requestAnimationFrame(bgLoop);})();
+
+/* ── Cursor ── */
+const cursorEl=document.getElementById('cursor');
+const tColors=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const tPool=[];
+for(let i=0;i<16;i++){const t=document.createElement('div');t.className='trail';const s=Math.max(3,9-i*0.35);t.style.cssText=`width:${s}px;height:${s}px;opacity:0;background:${tColors[i%4]};box-shadow:0 0 ${s*1.5}px ${tColors[i%4]};`;document.body.appendChild(t);tPool.push({el:t});}
+let mX=0,mY=0;const tPos=Array(16).fill(null).map(()=>({x:0,y:0}));
+document.addEventListener('mousemove',e=>{mX=e.clientX;mY=e.clientY;cursorEl.style.left=mX+'px';cursorEl.style.top=mY+'px';});
+(function tLoop(){tPos.unshift({x:mX,y:mY});tPos.pop();tPool.forEach((t,i)=>{t.el.style.left=tPos[i].x+'px';t.el.style.top=tPos[i].y+'px';t.el.style.opacity=Math.max(0,(1-i/16)*0.7);t.el.style.transform=`translate(-50%,-50%) scale(${Math.max(0.3,1-i/16)})`;});requestAnimationFrame(tLoop);})();
+</script>
+</body>
+</html>

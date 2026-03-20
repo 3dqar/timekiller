@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiquidCasino — Prisijungimas</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --neon-cyan:   #00f5ff;
+    --neon-purple: #bf00ff;
+    --neon-pink:   #ff0080;
+    --neon-green:  #00ff99;
+    --neon-red:    #ff2040;
+    --bg-deep:     #020408;
+    --text-dim:    rgba(255,255,255,0.5);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Rajdhani', sans-serif;
+    background: var(--bg-deep); color: #fff;
+    min-height: 100vh; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    cursor: none;
+  }
+
+  #cursor { position:fixed; pointer-events:none; z-index:99999; width:10px; height:10px; border-radius:50%; background:var(--neon-cyan); box-shadow:0 0 10px var(--neon-cyan); transform:translate(-50%,-50%); transition: transform 0.1s; }
+  .trail { position:fixed; pointer-events:none; z-index:99998; border-radius:50%; transform:translate(-50%,-50%); }
+
+  #bgCanvas { position:fixed; inset:0; z-index:0; pointer-events:none; }
+
+  body::before {
+    content:''; position:fixed; inset:0; z-index:1;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events:none; opacity:0.4;
+  }
+
+  #wrap {
+    position: relative; z-index: 2;
+    width: min(420px, 94vw);
+    display: flex; flex-direction: column; align-items: center; gap: 0;
+  }
+
+  /* LOGO */
+  .logo-title {
+    font-family: 'Orbitron', monospace; font-weight: 900;
+    font-size: clamp(2.2rem, 8vw, 3.2rem);
+    background: linear-gradient(135deg, var(--neon-cyan), var(--neon-purple), var(--neon-pink));
+    background-size: 300% 300%;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    animation: gradShift 4s ease infinite;
+    filter: drop-shadow(0 0 24px rgba(0,245,255,0.4));
+    letter-spacing: 0.05em; text-align: center;
+  }
+  @keyframes gradShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+  .logo-sub {
+    font-family: 'Orbitron', monospace; font-size: 0.65rem;
+    letter-spacing: 0.5em; color: var(--text-dim); text-align: center;
+    margin-top: 6px; margin-bottom: 36px;
+  }
+
+  /* CARD */
+  .auth-card {
+    width: 100%;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(0,245,255,0.15);
+    border-radius: 20px; padding: 32px 28px;
+    backdrop-filter: blur(20px);
+  }
+
+  /* TABS */
+  .tabs {
+    display: flex; gap: 0; margin-bottom: 28px;
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 100px; padding: 4px;
+  }
+  .tab {
+    flex: 1; text-align: center;
+    font-family: 'Orbitron', monospace; font-size: 0.7rem; letter-spacing: 0.2em;
+    padding: 9px; border-radius: 100px; cursor: none;
+    color: var(--text-dim); transition: all 0.3s; border: none; background: transparent;
+  }
+  .tab.active {
+    background: rgba(0,245,255,0.12); color: var(--neon-cyan);
+    box-shadow: 0 0 12px rgba(0,245,255,0.2);
+  }
+
+  /* FORM */
+  .form { display: flex; flex-direction: column; gap: 14px; }
+  .field-label {
+    font-family: 'Orbitron', monospace; font-size: 0.6rem;
+    letter-spacing: 0.3em; color: var(--text-dim); margin-bottom: 6px;
+    display: block;
+  }
+  .field-wrap { display: flex; flex-direction: column; }
+  .field-input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #fff; font-family: 'Rajdhani', sans-serif;
+    font-size: 1rem; font-weight: 600; letter-spacing: 0.05em;
+    padding: 12px 16px; border-radius: 10px; outline: none;
+    transition: all 0.25s; width: 100%;
+  }
+  .field-input:focus { border-color: rgba(0,245,255,0.4); background: rgba(0,245,255,0.05); box-shadow: 0 0 12px rgba(0,245,255,0.1); }
+  .field-input::placeholder { color: rgba(255,255,255,0.2); }
+
+  /* SUBMIT */
+  .submit-btn {
+    font-family: 'Orbitron', monospace; font-size: 0.75rem; letter-spacing: 0.25em;
+    font-weight: 700; color: #000;
+    background: var(--neon-cyan); border: none;
+    padding: 14px; border-radius: 100px; cursor: none;
+    transition: all 0.3s; margin-top: 6px;
+    box-shadow: 0 0 20px rgba(0,245,255,0.3);
+  }
+  .submit-btn:hover { box-shadow: 0 0 32px rgba(0,245,255,0.6); transform: scale(1.02); }
+  .submit-btn:disabled { opacity: 0.5; transform: none; }
+  .submit-btn.purple { background: var(--neon-purple); box-shadow: 0 0 20px rgba(191,0,255,0.3); color: #fff; }
+  .submit-btn.purple:hover { box-shadow: 0 0 32px rgba(191,0,255,0.6); }
+
+  /* STATUS */
+  #statusMsg {
+    text-align: center; min-height: 20px; margin-top: 14px;
+    font-family: 'Orbitron', monospace; font-size: 0.68rem; letter-spacing: 0.2em;
+  }
+  #statusMsg.ok  { color: var(--neon-green); filter: drop-shadow(0 0 6px var(--neon-green)); }
+  #statusMsg.err { color: var(--neon-red); }
+  #statusMsg.loading { color: var(--text-dim); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+  /* DIVIDER */
+  .divider-line {
+    display: flex; align-items: center; gap: 12px; margin: 4px 0;
+  }
+  .divider-line::before, .divider-line::after {
+    content: ''; flex: 1; height: 1px;
+    background: rgba(255,255,255,0.08);
+  }
+  .divider-line span { font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.2em; }
+
+  /* BOTTOM LINK */
+  .bottom-note {
+    text-align: center; margin-top: 20px;
+    font-size: 0.75rem; color: var(--text-dim); letter-spacing: 0.1em;
+  }
+  .bottom-note a { color: var(--neon-cyan); text-decoration: none; cursor: none; }
+
+  /* PASSWORD STRENGTH */
+  .pw-strength { display: flex; gap: 4px; margin-top: 6px; }
+  .pw-bar { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.08); transition: background 0.3s; }
+  .pw-bar.weak   { background: var(--neon-red); }
+  .pw-bar.medium { background: #ffaa00; }
+  .pw-bar.strong { background: var(--neon-green); }
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<canvas id="bgCanvas"></canvas>
+
+<div id="wrap">
+  <div class="logo-title">LIQUID<br>CASINO</div>
+  <div class="logo-sub">◈ LAIKO VALIUTA ◈</div>
+
+  <div class="auth-card">
+    <div class="tabs">
+      <button class="tab active" id="tabLogin" onclick="switchTab('login')">PRISIJUNGTI</button>
+      <button class="tab" id="tabRegister" onclick="switchTab('register')">REGISTRUOTIS</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="formLogin" class="form">
+      <div class="field-wrap">
+        <label class="field-label">VARTOTOJAS</label>
+        <input class="field-input" id="loginUser" type="text" placeholder="tavo_vardas" autocomplete="username" maxlength="20" />
+      </div>
+      <div class="field-wrap">
+        <label class="field-label">SLAPTAŽODIS</label>
+        <input class="field-input" id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button class="submit-btn" id="loginBtn" onclick="doLogin()">PRISIJUNGTI</button>
+    </div>
+
+    <!-- REGISTER -->
+    <div id="formRegister" class="form" style="display:none">
+      <div class="field-wrap">
+        <label class="field-label">VARTOTOJAS</label>
+        <input class="field-input" id="regUser" type="text" placeholder="tavo_vardas" autocomplete="username" maxlength="20" />
+      </div>
+      <div class="field-wrap">
+        <label class="field-label">SLAPTAŽODIS</label>
+        <input class="field-input" id="regPass" type="password" placeholder="••••••••" autocomplete="new-password" />
+        <div class="pw-strength">
+          <div class="pw-bar" id="pb1"></div>
+          <div class="pw-bar" id="pb2"></div>
+          <div class="pw-bar" id="pb3"></div>
+        </div>
+      </div>
+      <div class="field-wrap">
+        <label class="field-label">PAKARTOK SLAPTAŽODĮ</label>
+        <input class="field-input" id="regPass2" type="password" placeholder="••••••••" autocomplete="new-password" />
+      </div>
+      <button class="submit-btn purple" id="regBtn" onclick="doRegister()">SUKURTI PASKYRĄ</button>
+    </div>
+
+    <div id="statusMsg"></div>
+  </div>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycby_zcF3Oh62j-N_-iHqv_8Mnpo-H776lNc5f9Wr0zsgzgKW-Ugt2QsBWQo8ml_bnCKkYA/exec';
+
+/* ── Tabs ── */
+function switchTab(tab) {
+  document.getElementById('formLogin').style.display    = tab==='login'    ? 'flex' : 'none';
+  document.getElementById('formRegister').style.display = tab==='register' ? 'flex' : 'none';
+  document.getElementById('tabLogin').className    = 'tab' + (tab==='login'    ? ' active' : '');
+  document.getElementById('tabRegister').className = 'tab' + (tab==='register' ? ' active' : '');
+  setStatus('', '');
+}
+
+/* ── Status ── */
+function setStatus(msg, type) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg; el.className = type;
+}
+
+/* ── Password strength ── */
+document.getElementById('regPass').addEventListener('input', e => {
+  const v = e.target.value;
+  const bars = ['pb1','pb2','pb3'];
+  bars.forEach(id => document.getElementById(id).className = 'pw-bar');
+  if (v.length >= 4) document.getElementById('pb1').classList.add('weak');
+  if (v.length >= 7) document.getElementById('pb2').classList.add('medium');
+  if (v.length >= 10) document.getElementById('pb3').classList.add('strong');
+});
+
+/* ── API call ── */
+async function apiCall(data) {
+  const res = await fetch(API, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+}
+
+async function apiCallWithResponse(data) {
+  const res  = await fetch(API + '?t=' + Date.now(), { method: 'GET' });
+  await fetch(API, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+}
+
+/* ── Login ── */
+async function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if (!username || !password) { setStatus('⚠ Užpildyk visus laukus', 'err'); return; }
+  setStatus('Jungiamasi...', 'loading');
+  document.getElementById('loginBtn').disabled = true;
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', username, password })
+    });
+    const d = await res.json();
+    if (d.ok) {
+      setStatus('✓ Sveiki sugrįžę, ' + d.user.username + '!', 'ok');
+      localStorage.setItem('lc_user', JSON.stringify(d.user));
+      setTimeout(() => window.location.href = 'casino.html', 1200);
+    } else {
+      setStatus('⚠ ' + d.error, 'err');
+      document.getElementById('loginBtn').disabled = false;
+    }
+  } catch(e) {
+    setStatus('⚠ Nepavyko prisijungti', 'err');
+    document.getElementById('loginBtn').disabled = false;
+  }
+}
+
+/* ── Register ── */
+async function doRegister() {
+  const username = document.getElementById('regUser').value.trim();
+  const password = document.getElementById('regPass').value;
+  const password2 = document.getElementById('regPass2').value;
+  if (!username || !password) { setStatus('⚠ Užpildyk visus laukus', 'err'); return; }
+  if (username.length < 3)    { setStatus('⚠ Vardas per trumpas (min 3)', 'err'); return; }
+  if (password.length < 4)    { setStatus('⚠ Slaptažodis per trumpas (min 4)', 'err'); return; }
+  if (password !== password2) { setStatus('⚠ Slaptažodžiai nesutampa', 'err'); return; }
+  setStatus('Kuriama paskyra...', 'loading');
+  document.getElementById('regBtn').disabled = true;
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'register', username, password })
+    });
+    const d = await res.json();
+    if (d.ok) {
+      setStatus('✓ Paskyra sukurta! Prisijunk.', 'ok');
+      setTimeout(() => switchTab('login'), 1500);
+    } else {
+      setStatus('⚠ ' + d.error, 'err');
+    }
+    document.getElementById('regBtn').disabled = false;
+  } catch(e) {
+    setStatus('⚠ Nepavyko sukurti paskyros', 'err');
+    document.getElementById('regBtn').disabled = false;
+  }
+}
+
+/* ── Enter key ── */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const tab = document.getElementById('tabLogin').classList.contains('active');
+  if (tab) doLogin(); else doRegister();
+});
+
+/* ── Check if already logged in ── */
+const saved = localStorage.getItem('lc_user');
+if (saved) window.location.href = 'casino.html';
+
+/* ── BG Canvas ── */
+const bgC = document.getElementById('bgCanvas'), bgX = bgC.getContext('2d');
+function resizeBg(){ bgC.width=innerWidth; bgC.height=innerHeight; } resizeBg(); addEventListener('resize',resizeBg);
+const CLR=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const pts=Array.from({length:55},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.4+0.3,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3-.12,c:CLR[Math.floor(Math.random()*4)],a:Math.random()*.5+.2,p:Math.random()*Math.PI*2}));
+(function bgLoop(){bgX.clearRect(0,0,bgC.width,bgC.height);
+let g=bgX.createRadialGradient(bgC.width*.2,bgC.height*.3,0,bgC.width*.2,bgC.height*.3,bgC.width*.6);
+g.addColorStop(0,'rgba(0,87,255,0.05)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);
+g=bgX.createRadialGradient(bgC.width*.8,bgC.height*.7,0,bgC.width*.8,bgC.height*.7,bgC.width*.5);
+g.addColorStop(0,'rgba(191,0,255,0.05)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);
+pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.p+=.04;if(p.y<-10){p.y=bgC.height+10;p.x=Math.random()*bgC.width;}if(p.x<-10)p.x=bgC.width+10;if(p.x>bgC.width+10)p.x=-10;bgX.save();bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.shadowBlur=10;bgX.shadowColor=p.c;bgX.globalAlpha=p.a*(.6+.4*Math.sin(p.p));bgX.fillStyle=p.c;bgX.fill();bgX.restore();});
+requestAnimationFrame(bgLoop);})();
+
+/* ── Cursor Trail ── */
+const cursorEl=document.getElementById('cursor');
+const tColors=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const tPool=[];
+for(let i=0;i<16;i++){const t=document.createElement('div');t.className='trail';const s=Math.max(3,9-i*0.35);t.style.cssText=`width:${s}px;height:${s}px;opacity:0;background:${tColors[i%4]};box-shadow:0 0 ${s*1.5}px ${tColors[i%4]};`;document.body.appendChild(t);tPool.push({el:t});}
+let mX=0,mY=0;
+const tPos=Array(16).fill(null).map(()=>({x:0,y:0}));
+document.addEventListener('mousemove',e=>{mX=e.clientX;mY=e.clientY;cursorEl.style.left=mX+'px';cursorEl.style.top=mY+'px';});
+(function tLoop(){tPos.unshift({x:mX,y:mY});tPos.pop();tPool.forEach((t,i)=>{t.el.style.left=tPos[i].x+'px';t.el.style.top=tPos[i].y+'px';t.el.style.opacity=Math.max(0,(1-i/16)*0.7);t.el.style.transform=`translate(-50%,-50%) scale(${Math.max(0.3,1-i/16)})`;});requestAnimationFrame(tLoop);})();
+</script>
+</body>
+</html>
