@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiquidCasino — Clicker</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root{--neon-cyan:#00f5ff;--neon-purple:#bf00ff;--neon-pink:#ff0080;--neon-green:#00ff99;--neon-red:#ff2040;--neon-gold:#ffd700;--bg-deep:#020408;--bg-card:rgba(255,255,255,0.03);--text-dim:rgba(255,255,255,0.5);}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Rajdhani',sans-serif;background:var(--bg-deep);color:#fff;min-height:100vh;overflow-x:hidden;cursor:none;user-select:none;}
+  #cursor{position:fixed;pointer-events:none;z-index:99999;width:10px;height:10px;border-radius:50%;background:var(--neon-cyan);box-shadow:0 0 10px var(--neon-cyan);transform:translate(-50%,-50%);}
+  .trail{position:fixed;pointer-events:none;z-index:99998;border-radius:50%;transform:translate(-50%,-50%);}
+  #bgCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
+  body::before{content:'';position:fixed;inset:0;z-index:1;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;opacity:0.4;}
+
+  /* LAYOUT */
+  #wrap{position:relative;z-index:2;display:grid;grid-template-columns:1fr 360px;min-height:100vh;max-width:1300px;margin:0 auto;}
+
+  /* LEFT */
+  .left{display:flex;flex-direction:column;align-items:center;padding:16px clamp(12px,3vw,36px);gap:12px;}
+
+  /* TOPBAR */
+  .topbar{display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px;flex-wrap:wrap;}
+  .back-btn{font-family:'Orbitron',monospace;font-size:0.6rem;letter-spacing:0.2em;color:var(--text-dim);border:1px solid rgba(255,255,255,0.1);background:transparent;padding:7px 16px;border-radius:100px;cursor:none;text-decoration:none;transition:all 0.3s;}
+  .back-btn:hover{color:var(--neon-cyan);border-color:rgba(0,245,255,0.4);}
+  .top-btns{display:flex;gap:8px;}
+  .top-btn{font-family:'Orbitron',monospace;font-size:0.55rem;letter-spacing:0.15em;padding:7px 14px;border-radius:100px;cursor:none;transition:all 0.3s;border:1px solid;}
+  .top-btn.green{color:var(--neon-green);border-color:rgba(0,255,153,0.3);}
+  .top-btn.green:hover{background:rgba(0,255,153,0.1);}
+  .top-btn.gold{color:var(--neon-gold);border-color:rgba(255,215,0,0.3);}
+  .top-btn.gold:hover{background:rgba(255,215,0,0.1);}
+  .top-btn.red{color:var(--neon-red);border-color:rgba(255,32,64,0.3);}
+  .top-btn.red:hover{background:rgba(255,32,64,0.1);}
+
+  /* PRESTIGE INFO */
+  .prestige-bar{width:100%;background:linear-gradient(135deg,rgba(255,215,0,0.05),rgba(255,0,128,0.04));border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .prestige-info{display:flex;flex-direction:column;gap:2px;}
+  .prestige-label{font-family:'Orbitron',monospace;font-size:0.55rem;letter-spacing:0.3em;color:var(--neon-gold);}
+  .prestige-val{font-family:'Orbitron',monospace;font-size:0.9rem;font-weight:900;color:var(--neon-gold);filter:drop-shadow(0 0 6px var(--neon-gold));}
+  .prestige-btn{font-family:'Orbitron',monospace;font-size:0.6rem;letter-spacing:0.2em;color:#000;background:var(--neon-gold);border:none;padding:8px 18px;border-radius:100px;cursor:none;transition:all 0.3s;font-weight:700;}
+  .prestige-btn:hover{box-shadow:0 0 20px rgba(255,215,0,0.5);transform:scale(1.04);}
+  .prestige-btn:disabled{opacity:0.4;transform:none;}
+
+  /* STATS */
+  .stats-grid{width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .sbox{background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px 8px;text-align:center;}
+  .slbl{font-family:'Orbitron',monospace;font-size:0.45rem;letter-spacing:0.2em;color:var(--text-dim);margin-bottom:3px;}
+  .sv{font-family:'Orbitron',monospace;font-size:clamp(0.7rem,1.8vw,0.95rem);font-weight:900;}
+
+  /* COMBO */
+  .combo-wrap{width:100%;background:var(--bg-card);border:1px solid rgba(255,0,128,0.15);border-radius:12px;padding:10px 16px;display:flex;align-items:center;gap:12px;}
+  .combo-label{font-family:'Orbitron',monospace;font-size:0.55rem;letter-spacing:0.2em;color:var(--text-dim);}
+  .combo-val{font-family:'Orbitron',monospace;font-size:1.1rem;font-weight:900;color:var(--neon-pink);filter:drop-shadow(0 0 8px var(--neon-pink));min-width:40px;}
+  .combo-bar-bg{flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;}
+  .combo-bar-fill{height:100%;background:var(--neon-pink);border-radius:3px;transition:width 0.1s;box-shadow:0 0 8px var(--neon-pink);}
+  .combo-mult{font-family:'Orbitron',monospace;font-size:0.7rem;color:var(--neon-pink);}
+
+  /* CLICK BUTTON */
+  .btn-wrap{position:relative;display:flex;align-items:center;justify-content:center;width:200px;height:200px;}
+  #clickBtn{width:185px;height:185px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#1a0a2e,#080414);border:3px solid var(--neon-purple);box-shadow:0 0 40px rgba(191,0,255,0.3),inset 0 0 30px rgba(191,0,255,0.1);cursor:none;transition:transform 0.08s,box-shadow 0.08s;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;}
+  #clickBtn:active{transform:scale(0.91);}
+  #clickBtn.clicked{box-shadow:0 0 70px rgba(191,0,255,0.7),inset 0 0 40px rgba(191,0,255,0.2);}
+  .btn-icon{font-size:2.8rem;pointer-events:none;transition:transform 0.1s;}
+  .btn-lbl{font-family:'Orbitron',monospace;font-size:0.55rem;letter-spacing:0.2em;color:rgba(255,255,255,0.4);pointer-events:none;}
+  .btn-sub{font-family:'Orbitron',monospace;font-size:0.6rem;color:var(--neon-cyan);pointer-events:none;}
+
+  /* CLICK INFO */
+  .click-info{font-family:'Orbitron',monospace;font-size:0.7rem;letter-spacing:0.15em;color:var(--neon-purple);text-align:center;}
+
+  /* EVENT BANNER */
+  #eventBanner{width:100%;background:linear-gradient(135deg,rgba(255,0,128,0.08),rgba(191,0,255,0.06));border:1px solid rgba(255,0,128,0.3);border-radius:12px;padding:12px 16px;display:none;animation:eventPulse 2s ease-in-out infinite;}
+  @keyframes eventPulse{0%,100%{box-shadow:0 0 8px rgba(255,0,128,0.2)}50%{box-shadow:0 0 20px rgba(255,0,128,0.4)}}
+  #eventBanner.active{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .ev-icon{font-size:1.5rem;}
+  .ev-info{flex:1;}
+  .ev-name{font-family:'Orbitron',monospace;font-size:0.65rem;font-weight:700;color:var(--neon-pink);}
+  .ev-desc{font-size:0.75rem;color:var(--text-dim);}
+  .ev-timer{font-family:'Orbitron',monospace;font-size:0.7rem;color:var(--neon-pink);}
+
+  /* DAILY CHALLENGE */
+  .challenge-box{width:100%;background:var(--bg-card);border:1px solid rgba(0,245,255,0.12);border-radius:12px;padding:12px 16px;}
+  .ch-title{font-family:'Orbitron',monospace;font-size:0.55rem;letter-spacing:0.3em;color:var(--neon-cyan);margin-bottom:8px;}
+  .ch-list{display:flex;flex-direction:column;gap:6px;}
+  .ch-item{display:flex;align-items:center;gap:8px;}
+  .ch-icon{font-size:1rem;flex-shrink:0;}
+  .ch-info{flex:1;}
+  .ch-name{font-size:0.75rem;color:#fff;letter-spacing:0.05em;}
+  .ch-prog{font-family:'Orbitron',monospace;font-size:0.6rem;color:var(--text-dim);}
+  .ch-bar-bg{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin-top:3px;overflow:hidden;}
+  .ch-bar-fill{height:100%;border-radius:2px;transition:width 0.5s;}
+  .ch-reward{font-family:'Orbitron',monospace;font-size:0.6rem;color:var(--neon-gold);flex-shrink:0;}
+  .ch-done{font-size:0.8rem;}
+
+  /* MILESTONES */
+  .milestones{width:100%;background:var(--bg-card);border:1px solid rgba(255,215,0,0.08);border-radius:12px;padding:12px 14px;}
+  .m-title{font-family:'Orbitron',monospace;font-size:0.55rem;letter-spacing:0.3em;color:var(--text-dim);margin-bottom:8px;}
+  .m-list{display:flex;gap:6px;flex-wrap:wrap;}
+  .m-badge{font-family:'Orbitron',monospace;font-size:0.5rem;letter-spacing:0.08em;padding:3px 8px;border-radius:100px;border:1px solid rgba(255,215,0,0.15);color:rgba(255,215,0,0.3);background:rgba(255,215,0,0.03);transition:all 0.3s;}
+  .m-badge.earned{border-color:var(--neon-gold);color:var(--neon-gold);background:rgba(255,215,0,0.08);}
+
+  /* TRANSFER */
+  .transfer-box{width:100%;background:linear-gradient(135deg,rgba(0,255,153,0.03),rgba(0,245,255,0.02));border:1px solid rgba(0,255,153,0.18);border-radius:12px;padding:14px 16px;}
+  .t-title{font-family:'Orbitron',monospace;font-size:0.55rem;letter-spacing:0.3em;color:var(--neon-green);margin-bottom:8px;}
+  .t-rate{font-family:'Orbitron',monospace;font-size:0.7rem;color:var(--neon-cyan);margin-bottom:10px;}
+  .transfer-btn{font-family:'Orbitron',monospace;font-size:0.65rem;letter-spacing:0.2em;color:#000;background:var(--neon-green);border:none;padding:9px 22px;border-radius:100px;cursor:none;font-weight:700;box-shadow:0 0 14px rgba(0,255,153,0.3);transition:all 0.3s;}
+  .transfer-btn:hover{box-shadow:0 0 26px rgba(0,255,153,0.6);transform:scale(1.03);}
+  #transferInfo{font-family:'Orbitron',monospace;font-size:0.6rem;color:var(--text-dim);margin-top:7px;letter-spacing:0.08em;}
+
+  /* FLOAT NUMBERS */
+  .float-num{position:fixed;font-family:'Orbitron',monospace;font-size:0.85rem;font-weight:700;pointer-events:none;z-index:9998;animation:floatUp 1s ease forwards;}
+  .float-num.crit{font-size:1.2rem;color:#ff6400!important;}
+  @keyframes floatUp{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-70px) scale(0.6)}}
+
+  /* RIGHT PANEL */
+  .right{border-left:1px solid rgba(255,255,255,0.04);height:100vh;overflow-y:auto;position:sticky;top:0;padding:16px 14px;}
+
+  /* TABS */
+  .tab-row{display:flex;gap:4px;margin-bottom:14px;}
+  .tab-btn{flex:1;font-family:'Orbitron',monospace;font-size:0.5rem;letter-spacing:0.1em;padding:7px 4px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:var(--text-dim);cursor:none;transition:all 0.25s;text-align:center;}
+  .tab-btn.active{border-color:rgba(0,245,255,0.4);color:var(--neon-cyan);background:rgba(0,245,255,0.06);}
+
+  .tab-content{display:none;}
+  .tab-content.active{display:block;}
+
+  /* UPGRADE CARDS */
+  .upg-section{margin-bottom:16px;}
+  .upg-stitle{font-family:'Orbitron',monospace;font-size:0.5rem;letter-spacing:0.35em;color:var(--text-dim);margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.04);}
+  .upg-card{background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px;margin-bottom:6px;cursor:none;transition:all 0.2s;display:flex;align-items:center;gap:8px;position:relative;overflow:hidden;}
+  .upg-card:hover:not(.maxed){border-color:rgba(0,245,255,0.25);background:rgba(0,245,255,0.03);}
+  .upg-card.can-afford{border-color:rgba(0,255,153,0.2);}
+  .upg-card.can-afford:hover{border-color:rgba(0,255,153,0.45);background:rgba(0,255,153,0.04);}
+  .upg-card.maxed{border-color:rgba(255,215,0,0.25);background:rgba(255,215,0,0.03);opacity:0.65;}
+  .upg-icon{font-size:1.2rem;flex-shrink:0;}
+  .upg-info{flex:1;min-width:0;}
+  .upg-name{font-family:'Orbitron',monospace;font-size:0.58rem;font-weight:700;color:#fff;margin-bottom:1px;}
+  .upg-desc{font-size:0.62rem;color:var(--text-dim);line-height:1.3;}
+  .upg-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
+  .upg-cost{font-family:'Orbitron',monospace;font-size:0.58rem;color:var(--neon-gold);}
+  .upg-lvl{font-family:'Orbitron',monospace;font-size:0.5rem;color:var(--text-dim);}
+  .upg-prog{position:absolute;bottom:0;left:0;height:2px;background:var(--neon-cyan);opacity:0.4;transition:width 0.3s;}
+  .upg-card.can-afford .upg-prog{background:var(--neon-green);}
+  .upg-card.maxed .upg-prog{background:var(--neon-gold);opacity:0.7;}
+
+  /* SHOP */
+  .shop-card{background:var(--bg-card);border:1px solid rgba(255,0,128,0.15);border-radius:10px;padding:12px;margin-bottom:8px;cursor:none;transition:all 0.25s;display:flex;align-items:center;gap:10px;}
+  .shop-card:hover{border-color:rgba(255,0,128,0.4);background:rgba(255,0,128,0.04);}
+  .shop-card.owned{border-color:rgba(255,215,0,0.3);background:rgba(255,215,0,0.03);}
+  .shop-icon{font-size:1.4rem;flex-shrink:0;}
+  .shop-info{flex:1;}
+  .shop-name{font-family:'Orbitron',monospace;font-size:0.62rem;font-weight:700;color:#fff;margin-bottom:2px;}
+  .shop-desc{font-size:0.68rem;color:var(--text-dim);}
+  .shop-right{text-align:right;flex-shrink:0;}
+  .shop-cost{font-family:'Orbitron',monospace;font-size:0.62rem;color:var(--neon-pink);}
+  .shop-owned{font-family:'Orbitron',monospace;font-size:0.58rem;color:var(--neon-gold);}
+
+  /* PRESTIGE TREE */
+  .prestige-info-box{background:linear-gradient(135deg,rgba(255,215,0,0.05),rgba(255,0,128,0.04));border:1px solid rgba(255,215,0,0.2);border-radius:12px;padding:16px;margin-bottom:12px;}
+  .pi-title{font-family:'Orbitron',monospace;font-size:0.6rem;letter-spacing:0.3em;color:var(--neon-gold);margin-bottom:10px;}
+  .pi-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+  .pi-stat{text-align:center;}
+  .pi-stat-lbl{font-family:'Orbitron',monospace;font-size:0.5rem;letter-spacing:0.2em;color:var(--text-dim);}
+  .pi-stat-val{font-family:'Orbitron',monospace;font-size:1rem;font-weight:900;color:var(--neon-gold);}
+  .pi-desc{font-size:0.75rem;color:var(--text-dim);line-height:1.5;margin-bottom:12px;}
+  .prestige-do-btn{display:block;width:100%;font-family:'Orbitron',monospace;font-size:0.7rem;letter-spacing:0.25em;font-weight:700;color:#000;background:var(--neon-gold);border:none;padding:12px;border-radius:100px;cursor:none;transition:all 0.3s;}
+  .prestige-do-btn:hover{box-shadow:0 0 24px rgba(255,215,0,0.5);transform:scale(1.02);}
+  .prestige-do-btn:disabled{opacity:0.4;transform:none;}
+
+  /* STATS TAB */
+  .stat-table{width:100%;border-collapse:collapse;}
+  .stat-table tr{border-bottom:1px solid rgba(255,255,255,0.04);}
+  .stat-table td{padding:8px 4px;font-size:0.75rem;}
+  .stat-table td:first-child{color:var(--text-dim);letter-spacing:0.1em;}
+  .stat-table td:last-child{font-family:'Orbitron',monospace;font-size:0.7rem;color:#fff;text-align:right;}
+
+  #toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);z-index:9999;font-family:'Orbitron',monospace;font-size:0.7rem;letter-spacing:0.2em;padding:12px 28px;border-radius:100px;transition:transform 0.4s cubic-bezier(.17,.67,.3,1.4),opacity 0.4s;opacity:0;pointer-events:none;white-space:nowrap;}
+  #toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+  #toast.ok{background:rgba(0,255,153,0.12);border:1px solid rgba(0,255,153,0.4);color:var(--neon-green);}
+  #toast.err{background:rgba(255,32,64,0.12);border:1px solid rgba(255,32,64,0.4);color:var(--neon-red);}
+  #toast.special{background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.5);color:var(--neon-gold);}
+
+  ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--neon-purple);border-radius:2px}
+
+  /* PRESTIGE GLOW */
+  body.prestige1{--neon-purple:#ff6400;}
+  body.prestige2{--neon-purple:#ff0080;}
+  body.prestige3{--neon-purple:#ffd700;}
+
+  @media(max-width:700px){
+    #wrap{grid-template-columns:1fr;}
+    .right{height:auto;position:static;border-left:none;border-top:1px solid rgba(255,255,255,0.05);}
+    .btn-wrap{width:160px;height:160px;}
+    #clickBtn{width:145px;height:145px;}
+    .btn-icon{font-size:2.2rem;}
+    .stats-grid{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+<div id="cursor"></div>
+<canvas id="bgCanvas"></canvas>
+<div id="toast"></div>
+
+<div id="wrap">
+<!-- LEFT -->
+<div class="left">
+  <div class="topbar">
+    <a href="casino.html" class="back-btn">← ATGAL</a>
+    <div class="top-btns">
+      <button class="top-btn green" onclick="saveState()">💾 SAUGOTI</button>
+      <button class="top-btn gold" onclick="transferToBank()">⬡ PERKELTI</button>
+      <button class="top-btn red" onclick="confirmReset()">↺ RESET</button>
+    </div>
+  </div>
+
+  <div class="prestige-bar">
+    <div class="prestige-info">
+      <div class="prestige-label">PRESTIŽAS</div>
+      <div class="prestige-val" id="prestigeVal">×1.00</div>
+    </div>
+    <div style="flex:1;font-family:'Orbitron',monospace;font-size:0.6rem;color:var(--text-dim)" id="prestigeStars">⭐ 0 žvaigždžių</div>
+    <button class="prestige-btn" id="prestigeBtn" onclick="doPrestige()" disabled>PRESTIGE ⭐</button>
+  </div>
+
+  <div class="stats-grid">
+    <div class="sbox"><div class="slbl">JEVREJAI</div><div class="sv" id="sCoins" style="color:var(--neon-gold)">0</div></div>
+    <div class="sbox"><div class="slbl">PER SEK</div><div class="sv" id="sCps" style="color:var(--neon-cyan)">0</div></div>
+    <div class="sbox"><div class="slbl">PER CLICK</div><div class="sv" id="sCpc" style="color:var(--neon-purple)">0</div></div>
+    <div class="sbox"><div class="slbl">ISVISO</div><div class="sv" id="sTotal" style="color:var(--neon-pink)">0</div></div>
+  </div>
+
+  <!-- COMBO -->
+  <div class="combo-wrap">
+    <div class="combo-label">COMBO</div>
+    <div class="combo-val" id="comboVal">×1</div>
+    <div class="combo-bar-bg"><div class="combo-bar-fill" id="comboBar" style="width:100%"></div></div>
+    <div class="combo-mult" id="comboMult">+0%</div>
+  </div>
+
+  <!-- CLICK BTN -->
+  <div class="btn-wrap">
+    <div id="clickBtn" onclick="doClick(event)">
+      <span class="btn-icon" id="btnIcon">⬡</span>
+      <span class="btn-lbl">SPAUSTI</span>
+      <span class="btn-sub" id="btnSub">+0.01/click</span>
+    </div>
+  </div>
+
+  <div class="click-info" id="clickInfo">Kiekvienas spaudimas: <span style="color:var(--neon-gold)">0.01</span> ⬡</div>
+
+  <!-- EVENT -->
+  <div id="eventBanner">
+    <div class="ev-icon" id="evIcon">🎉</div>
+    <div class="ev-info">
+      <div class="ev-name" id="evName">ĮVYKIS</div>
+      <div class="ev-desc" id="evDesc"></div>
+    </div>
+    <div class="ev-timer" id="evTimer"></div>
+  </div>
+
+  <!-- DAILY CHALLENGES -->
+  <div class="challenge-box">
+    <div class="ch-title">◈ DIENOS IŠŠŪKIAI ◈</div>
+    <div class="ch-list" id="chList"></div>
+  </div>
+
+  <!-- MILESTONES -->
+  <div class="milestones">
+    <div class="m-title">◈ PASIEKIMAI ◈</div>
+    <div class="m-list" id="mList"></div>
+  </div>
+
+  <!-- TRANSFER -->
+  <div class="transfer-box">
+    <div class="t-title">◈ PERKELTI Į KASĄ ◈</div>
+    <div class="t-rate" id="tRate">100 ⬡ clicker = 1 casino jevrejas</div>
+    <button class="transfer-btn" onclick="transferToBank()">⬡ PERKELTI VISKĄ</button>
+    <div id="transferInfo">Turima: 0 → 0 casino jevrejų</div>
+  </div>
+</div>
+
+<!-- RIGHT -->
+<div class="right">
+  <div class="tab-row">
+    <button class="tab-btn active" onclick="switchTab('upgrades')">UPGRADE'AI</button>
+    <button class="tab-btn" onclick="switchTab('shop')">PARDUOTUVĖ</button>
+    <button class="tab-btn" onclick="switchTab('prestige')">PRESTIŽAS</button>
+    <button class="tab-btn" onclick="switchTab('stats')">STATISTIKA</button>
+  </div>
+
+  <div class="tab-content active" id="tab-upgrades">
+    <div id="upgContainer"></div>
+  </div>
+
+  <div class="tab-content" id="tab-shop">
+    <div id="shopContainer"></div>
+  </div>
+
+  <div class="tab-content" id="tab-prestige">
+    <div class="prestige-info-box">
+      <div class="pi-title">◈ PRESTIŽO SISTEMA ◈</div>
+      <div class="pi-stats">
+        <div class="pi-stat"><div class="pi-stat-lbl">PRESTIŽAI</div><div class="pi-stat-val" id="pStars">0</div></div>
+        <div class="pi-stat"><div class="pi-stat-lbl">MULTIPLIER</div><div class="pi-stat-val" id="pMult">×1.00</div></div>
+      </div>
+      <div class="pi-desc">Pasiekus 1,000,000 jevrejų galima daryti Prestige. Prarandate visus upgrade'us ir jevrejus, bet gaunate ⭐ žvaigždę kuri VISAM LAIKUI padidina visą produkciją ×1.5 už žvaigždę!</div>
+      <div style="font-family:Orbitron,monospace;font-size:0.65rem;color:var(--neon-gold);margin-bottom:12px;" id="pReq">Reikia: 1,000,000 ⬡</div>
+      <button class="prestige-do-btn" id="prestigeDoBtn" onclick="doPrestige()" disabled>⭐ DARYTI PRESTIGE</button>
+    </div>
+    <div id="prestigePerks"></div>
+  </div>
+
+  <div class="tab-content" id="tab-stats">
+    <table class="stat-table" id="statTable"></table>
+  </div>
+</div>
+</div>
+
+<script>
+const API='https://script.google.com/macros/s/AKfycby_zcF3Oh62j-N_-iHqv_8Mnpo-H776lNc5f9Wr0zsgzgKW-Ugt2QsBWQo8ml_bnCKkYA/exec';
+let user=JSON.parse(localStorage.getItem('lc_user')||'null');
+if(!user)window.location.href='login.html';
+
+/* ── STATE ── */
+let g = {
+  coins:0, total:0, clicks:0, prestigeStars:0,
+  eventMultEnd:0, eventMultVal:1,
+  shopOwned:{},
+  upgrades:{},
+};
+let cpc=0.01, cps=0;
+let combo=1, comboTimer=null, comboMax=0;
+let critChance=0.05, critMult=3;
+
+/* ── UPGRADES ── */
+const UPGRADES=[
+  {id:'c1',cat:'SPAUDIMO GALIA',icon:'👆',name:'Geresnis pirštas',desc:'+0.01/click',base:10,max:50,cpc:0.01},
+  {id:'c2',cat:'SPAUDIMO GALIA',icon:'✌️',name:'Du pirštai',desc:'+0.05/click',base:80,max:40,cpc:0.05},
+  {id:'c3',cat:'SPAUDIMO GALIA',icon:'🖐️',name:'Visa ranka',desc:'+0.25/click',base:400,max:35,cpc:0.25},
+  {id:'c4',cat:'SPAUDIMO GALIA',icon:'👊',name:'Kumštis',desc:'+1/click',base:2000,max:30,cpc:1},
+  {id:'c5',cat:'SPAUDIMO GALIA',icon:'🦾',name:'Robotinė ranka',desc:'+5/click',base:10000,max:25,cpc:5},
+  {id:'c6',cat:'SPAUDIMO GALIA',icon:'⚡',name:'Žaibo greitis',desc:'+20/click',base:50000,max:20,cpc:20},
+  {id:'c7',cat:'SPAUDIMO GALIA',icon:'💥',name:'Kvantinis smūgis',desc:'+100/click',base:250000,max:15,cpc:100},
+  {id:'c8',cat:'SPAUDIMO GALIA',icon:'🌌',name:'Galaktikos jėga',desc:'+500/click',base:1e6,max:10,cpc:500},
+  {id:'c9',cat:'SPAUDIMO GALIA',icon:'🔮',name:'Mistinis pirštas',desc:'+3000/click',base:5e6,max:8,cpc:3000},
+
+  {id:'a1',cat:'AUTO GENERATORIAI',icon:'🖱️',name:'Auto Clicker',desc:'+0.1/sek',base:50,max:60,aps:0.1},
+  {id:'a2',cat:'AUTO GENERATORIAI',icon:'🤖',name:'Robotas',desc:'+0.5/sek',base:250,max:50,aps:0.5},
+  {id:'a3',cat:'AUTO GENERATORIAI',icon:'🏭',name:'Fabrikas',desc:'+2/sek',base:1200,max:45,aps:2},
+  {id:'a4',cat:'AUTO GENERATORIAI',icon:'⛏️',name:'Kasykla',desc:'+8/sek',base:5000,max:40,aps:8},
+  {id:'a5',cat:'AUTO GENERATORIAI',icon:'🚀',name:'Raketų bazė',desc:'+30/sek',base:20000,max:35,aps:30},
+  {id:'a6',cat:'AUTO GENERATORIAI',icon:'⚛️',name:'Reaktorius',desc:'+120/sek',base:80000,max:30,aps:120},
+  {id:'a7',cat:'AUTO GENERATORIAI',icon:'🌞',name:'Žvaigždė',desc:'+500/sek',base:400000,max:25,aps:500},
+  {id:'a8',cat:'AUTO GENERATORIAI',icon:'🌌',name:'Juodoji skylė',desc:'+2500/sek',base:2e6,max:20,aps:2500},
+  {id:'a9',cat:'AUTO GENERATORIAI',icon:'🔮',name:'Dimensija',desc:'+15000/sek',base:1e7,max:15,aps:15000},
+  {id:'a10',cat:'AUTO GENERATORIAI',icon:'🌀',name:'Singuliarumas',desc:'+100000/sek',base:5e7,max:10,aps:100000},
+
+  {id:'m1',cat:'MULTIPLIERIAI',icon:'✨',name:'Laimės burtai',desc:'×1.5 viskam',base:150,max:20,mcpc:1.5,maps:1.5},
+  {id:'m2',cat:'MULTIPLIERIAI',icon:'🍀',name:'Keturlapė',desc:'×2 click galiai',base:800,max:15,mcpc:2},
+  {id:'m3',cat:'MULTIPLIERIAI',icon:'💎',name:'Deimantinis pirštas',desc:'×2 auto',base:4000,max:12,maps:2},
+  {id:'m4',cat:'MULTIPLIERIAI',icon:'🔥',name:'Ugninė energija',desc:'×3 viskam',base:25000,max:10,mcpc:3,maps:3},
+  {id:'m5',cat:'MULTIPLIERIAI',icon:'⭐',name:'Žvaigždinė galia',desc:'×5 click galiai',base:120000,max:8,mcpc:5},
+  {id:'m6',cat:'MULTIPLIERIAI',icon:'👑',name:'Karališka galia',desc:'×5 auto',base:500000,max:6,maps:5},
+  {id:'m7',cat:'MULTIPLIERIAI',icon:'🌟',name:'Kosminė galia',desc:'×10 viskam',base:2e6,max:5,mcpc:10,maps:10},
+  {id:'m8',cat:'MULTIPLIERIAI',icon:'🌈',name:'Vaivorykštė',desc:'×25 viskam',base:1e7,max:4,mcpc:25,maps:25},
+
+  {id:'s1',cat:'SPECIALŪS',icon:'💡',name:'Jevrejų idėja',desc:'+500% coins iš karto',base:400,max:999,special:'bonus10'},
+  {id:'s2',cat:'SPECIALŪS',icon:'🎲',name:'Laimės kauliukas',desc:'CPS × random 1-6x',base:1500,max:999,special:'dice'},
+  {id:'s3',cat:'SPECIALŪS',icon:'⏰',name:'Laiko šuolis',desc:'+2h CPS iš karto',base:4000,max:999,special:'time2h'},
+  {id:'s4',cat:'SPECIALŪS',icon:'🃏',name:'Laimės kortelė',desc:'50/50: ×3 arba ×0.3',base:6000,max:999,special:'gamble'},
+  {id:'s5',cat:'SPECIALŪS',icon:'🌀',name:'Dimensijų vartai',desc:'+12h CPS iš karto',base:50000,max:999,special:'time12h'},
+  {id:'s6',cat:'SPECIALŪS',icon:'🎯',name:'Tikslus smūgis',desc:'+50% crit šansas 30sek',base:10000,max:999,special:'crit30'},
+  {id:'s7',cat:'SPECIALŪS',icon:'⚗️',name:'Alchemija',desc:'Konvertuoja 10% coins → ×5',base:20000,max:999,special:'alch'},
+];
+
+/* ── SHOP ── */
+const SHOP=[
+  {id:'golden_cursor',icon:'🖱️',name:'Auksinė pelė',desc:'Kiekvienas 10-as click = ×10 bonus',cost:5000},
+  {id:'auto_crit',icon:'💥',name:'Auto Crit',desc:'Auto generatoriai turi 10% crit šansą',cost:15000},
+  {id:'combo_extend',icon:'⏱️',name:'Combo prailginimas',desc:'Combo laikotarpis ×2 ilgesnis',cost:25000},
+  {id:'lucky_clicks',icon:'🍀',name:'Laimingo klikso',desc:'5% šansas gauti ×10 iš click',cost:40000},
+  {id:'passive_bonus',icon:'😴',name:'Pasyvus bonusas',desc:'+10% CPS kai nepaspaudžiama 5sek',cost:60000},
+  {id:'click_storm',icon:'⚡',name:'Klikso audra',desc:'Paspaudus 50x per 5sek = ×5 bonus 10sek',cost:100000},
+  {id:'rainbow_mode',icon:'🌈',name:'Vaivorykštės režimas',desc:'Kiekviena minutė = +1% permanent CPS',cost:200000},
+  {id:'prestige_boost',icon:'⭐',name:'Prestižo stiprinimas',desc:'Kiekviena prestižo žvaigždė = ×2 (ne ×1.5)',cost:500000},
+];
+
+/* ── CHALLENGES ── */
+const DAILY_CHALLENGES=[
+  {id:'click100',icon:'👆',name:'Klik Klik Klik',desc:'Paspausk 100 kartų',goal:100,type:'clicks',reward:500},
+  {id:'earn1000',icon:'💰',name:'Pirmasis tūkstantis',desc:'Uždirk 1000 jevrejų',goal:1000,type:'earn',reward:200},
+  {id:'buy3',icon:'🛒',name:'Šopingas',desc:'Nupirk 3 upgrade\'us',goal:3,type:'buy',reward:1000},
+];
+
+/* ── EVENTS ── */
+const EVENTS=[
+  {icon:'🔥',name:'UGNIES VALANDA',desc:'×3 viskam 60 sekundžių!',mult:3,dur:60},
+  {icon:'💎',name:'DEIMANTAS',desc:'×5 click galiai 45 sekundžių!',mult:5,dur:45,cpcOnly:true},
+  {icon:'🌟',name:'ŽVAIGŽDŽIŲ LIETUS',desc:'×10 CPS 30 sekundžių!',mult:10,dur:30,cpsOnly:true},
+  {icon:'🎉',name:'ŠVENTĖ',desc:'×2 viskam 120 sekundžių!',mult:2,dur:120},
+  {icon:'⚡',name:'ŽAIBAS',desc:'×7 click galiai 20 sekundžių!',mult:7,dur:20,cpcOnly:true},
+];
+
+/* ── MILESTONES ── */
+const MILESTONES=[
+  {label:'100 ⬡',total:100},{label:'1K ⬡',total:1000},{label:'10K ⬡',total:10000},
+  {label:'100K ⬡',total:100000},{label:'1M ⬡',total:1e6},{label:'10M ⬡',total:1e7},
+  {label:'100 clicks',clicks:100},{label:'1K clicks',clicks:1000},{label:'10K clicks',clicks:10000},
+  {label:'1/sek',cps:1},{label:'100/sek',cps:100},{label:'1K/sek',cps:1000},{label:'10K/sek',cps:10000},
+  {label:'1 Prestige',pres:1},{label:'3 Prestige',pres:3},{label:'5 Prestige',pres:5},
+];
+
+/* ── CHALLENGE STATE ── */
+let chState={};
+let challengeDay='';
+let challengeBuys=0;
+let challengeEarned=0;
+
+/* ── LOAD / SAVE ── */
+const SK='lc_clicker2_'+user.username;
+function loadState(){
+  const s=JSON.parse(localStorage.getItem(SK)||'{}');
+  g.coins       = s.coins||0;
+  g.total       = s.total||0;
+  g.clicks      = s.clicks||0;
+  g.prestigeStars=s.prestigeStars||0;
+  g.shopOwned   = s.shopOwned||{};
+  g.upgrades    = s.upgrades||{};
+  chState       = s.chState||{};
+  challengeDay  = s.challengeDay||'';
+  challengeBuys = s.challengeBuys||0;
+  challengeEarned=s.challengeEarned||0;
+  recalc();
+  initDailyChallenges();
+}
+function saveState(){
+  localStorage.setItem(SK,JSON.stringify({...g,chState,challengeDay,challengeBuys,challengeEarned}));
+}
+
+/* ── RECALC ── */
+function recalc(){
+  cpc=0.01; cps=0;
+  const pMult=prestigeMult();
+  UPGRADES.forEach(u=>{
+    const lvl=g.upgrades[u.id]||0;
+    if(!lvl)return;
+    if(u.cpc) cpc+=u.cpc*lvl;
+    if(u.aps) cps+=u.aps*lvl;
+    if(u.mcpc)for(let i=0;i<lvl;i++)cpc*=u.mcpc;
+    if(u.maps)for(let i=0;i<lvl;i++)cps*=u.maps;
+  });
+  cpc*=pMult; cps*=pMult;
+  if(g.shopOwned.prestige_boost) {
+    const extra=Math.pow(2,g.prestigeStars)-Math.pow(1.5,g.prestigeStars);
+    cpc*=(1+extra); cps*=(1+extra);
+  }
+  critChance=0.05+(g.shopOwned.auto_crit?0.1:0);
+  critMult=3;
+}
+
+function prestigeMult(){
+  if(g.shopOwned.prestige_boost) return Math.pow(2,g.prestigeStars)||1;
+  return Math.pow(1.5,g.prestigeStars)||1;
+}
+
+/* ── CLICK ── */
+let clickCount50=0, clickStorm=false, clickStormEnd=0;
+function doClick(e){
+  let gain=cpc;
+
+  // combo
+  combo=Math.min(combo+0.1,10);
+  clearTimeout(comboTimer);
+  const comboDelay=g.shopOwned.combo_extend?4000:2000;
+  comboTimer=setTimeout(()=>{combo=1;updateCombo();},comboDelay);
+  gain*=combo;
+
+  // crit
+  const critR=Math.random();
+  const isCrit=critR<critChance+(g._crit30?0.5:0);
+  if(isCrit){gain*=critMult;spawnFloat(e.clientX,e.clientY,'CRIT! +'+fmt(gain),'#ff6400',true);}
+  else spawnFloat(e.clientX,e.clientY,'+'+fmt(gain),'var(--neon-gold)',false);
+
+  // lucky clicks
+  if(g.shopOwned.lucky_clicks&&Math.random()<0.05){gain*=10;spawnFloat(e.clientX,e.clientY-30,'🍀 ×10!','#00ff99',true);}
+
+  // golden cursor
+  if(g.shopOwned.golden_cursor){g._clickCount=(g._clickCount||0)+1;if(g._clickCount%10===0){gain*=10;spawnFloat(e.clientX,e.clientY-40,'🖱️ ×10!','var(--neon-gold)',true);}}
+
+  // click storm
+  if(g.shopOwned.click_storm){clickCount50++;if(!clickStorm){setTimeout(()=>{if(clickCount50>=50){clickStorm=true;clickStormEnd=Date.now()+10000;showToast('⚡ CLICK STORM! ×5 10sek!','special');}clickCount50=0;},5000);}
+  if(clickStorm&&Date.now()<clickStormEnd)gain*=5;else if(clickStorm&&Date.now()>=clickStormEnd)clickStorm=false;}
+
+  // event
+  const em=eventMult();
+  gain*=em;
+
+  g.coins+=gain; g.total+=gain; g.clicks++;
+  challengeEarned+=gain;
+
+  document.getElementById('clickBtn').classList.add('clicked');
+  setTimeout(()=>document.getElementById('clickBtn').classList.remove('clicked'),120);
+  updateCombo();
+  updateUI();
+  checkMilestones();
+  checkChallenges();
+}
+
+function spawnFloat(x,y,text,color,crit){
+  const el=document.createElement('div');
+  el.className='float-num'+(crit?' crit':'');
+  el.textContent=text;
+  el.style.cssText=`left:${x}px;top:${y}px;color:${color};`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),1000);
+}
+
+/* ── AUTO CPS ── */
+let lastTick=Date.now();
+setInterval(()=>{
+  const now=Date.now();
+  const dt=(now-lastTick)/1000;
+  lastTick=now;
+  let gain=cps*dt*eventMult();
+  if(g.shopOwned.rainbow_mode){const mins=Math.floor((g.total/cps)/60);cps*=(1+mins*0.01);}
+  if(gain>0){g.coins+=gain;g.total+=gain;challengeEarned+=gain;}
+  // passive bonus
+  if(g.shopOwned.passive_bonus&&(Date.now()-lastClickTime)>5000)g.coins+=cps*dt*0.1;
+  updateUI();
+  checkChallenges();
+  tickEvent();
+},100);
+
+let lastClickTime=Date.now();
+document.addEventListener('click',()=>lastClickTime=Date.now());
+
+/* ── EVENT ── */
+let activeEvent=null,eventEnd=0;
+function eventMult(){
+  if(!activeEvent||Date.now()>eventEnd)return 1;
+  return activeEvent.mult;
+}
+function tickEvent(){
+  if(activeEvent&&Date.now()>eventEnd){activeEvent=null;document.getElementById('eventBanner').classList.remove('active');}
+  if(activeEvent){document.getElementById('evTimer').textContent=Math.ceil((eventEnd-Date.now())/1000)+'s';}
+  // random event chance
+  if(!activeEvent&&Math.random()<0.00005){triggerEvent();}
+}
+function triggerEvent(){
+  activeEvent=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  eventEnd=Date.now()+activeEvent.dur*1000;
+  const b=document.getElementById('eventBanner');
+  b.classList.add('active');
+  document.getElementById('evIcon').textContent=activeEvent.icon;
+  document.getElementById('evName').textContent=activeEvent.name;
+  document.getElementById('evDesc').textContent=activeEvent.desc;
+  showToast(activeEvent.icon+' '+activeEvent.name+'!','special');
+}
+
+/* ── COMBO ── */
+function updateCombo(){
+  const c=Math.floor(combo*10)/10;
+  document.getElementById('comboVal').textContent='×'+c.toFixed(1);
+  document.getElementById('comboMult').textContent='+'+Math.round((combo-1)*100)+'%';
+  const pct=((combo-1)/9)*100;
+  document.getElementById('comboBar').style.width=pct+'%';
+  const h=Math.floor(120*(combo-1)/9);
+  document.getElementById('comboBar').style.background=`hsl(${h},100%,55%)`;
+}
+
+/* ── BUY UPGRADE ── */
+function buyUpgrade(id){
+  const u=UPGRADES.find(x=>x.id===id);
+  if(!u)return;
+  const lvl=g.upgrades[id]||0;
+  if(lvl>=u.max)return;
+  const cost=Math.floor(u.base*Math.pow(1.15,lvl));
+  if(g.coins<cost){showToast('Nepakankamai jevrejų!','err');return;}
+  g.coins-=cost;
+  g.upgrades[id]=(lvl||0)+1;
+  challengeBuys++;
+  recalc();
+  // special
+  if(u.special)doSpecial(u.special);
+  updateUI();
+  renderUpgrades();
+  renderStats();
+  saveState();
+  showToast('✓ '+u.name+' LVL '+(lvl+1),'ok');
+}
+
+function doSpecial(s){
+  if(s==='bonus10'){const b=g.coins*10;g.coins+=b;g.total+=b;showToast('+'+fmt(b)+' ⬡!','special');}
+  if(s==='dice'){const m=Math.floor(Math.random()*6)+1;cps*=m;showToast('🎲 ×'+m+' CPS!','special');}
+  if(s==='time2h'){const b=cps*7200;g.coins+=b;g.total+=b;showToast('+'+fmt(b)+' ⬡ (2h CPS)','special');}
+  if(s==='time12h'){const b=cps*43200;g.coins+=b;g.total+=b;showToast('+'+fmt(b)+' ⬡ (12h CPS)','special');}
+  if(s==='gamble'){if(Math.random()>0.5){g.coins*=3;showToast('🃏 ×3 LAIMĖJAI!','special');}else{g.coins*=0.3;showToast('🃏 ×0.3... Nepasisekė','err');}}
+  if(s==='crit30'){g._crit30=true;setTimeout(()=>{g._crit30=false;},30000);showToast('💥 Crit +50% 30sek!','special');}
+  if(s==='alch'){const take=g.coins*0.1;g.coins-=take;g.coins+=take*5;showToast('⚗️ Alchemija! +'+fmt(take*4),'special');}
+}
+
+/* ── BUY SHOP ── */
+function buyShop(id){
+  const s=SHOP.find(x=>x.id===id);
+  if(!s||g.shopOwned[id])return;
+  if(g.coins<s.cost){showToast('Nepakankamai jevrejų!','err');return;}
+  g.coins-=s.cost;
+  g.shopOwned[id]=true;
+  recalc();
+  renderShop();
+  saveState();
+  showToast('✓ '+s.name+' įsigytas!','special');
+}
+
+/* ── PRESTIGE ── */
+const PRESTIGE_REQ=1e6;
+function doPrestige(){
+  if(g.total<PRESTIGE_REQ){showToast('Reikia 1,000,000 ⬡!','err');return;}
+  if(!confirm('Prestige? Prarasite visus upgrade\'us ir jevrejus, bet gausite ×1.5 permanent!'))return;
+  g.prestigeStars++;
+  g.coins=0; g.total=0; g.clicks=0;
+  g.upgrades={};
+  g.shopOwned={};
+  recalc();
+  updateUI();
+  renderUpgrades();
+  renderShop();
+  renderPrestige();
+  saveState();
+  showToast('⭐ PRESTIGE x'+g.prestigeStars+'! ×'+prestigeMult().toFixed(2)+' multiplier!','special');
+  document.body.className='prestige'+Math.min(g.prestigeStars,3);
+}
+
+/* ── TRANSFER ── */
+function transferToBank(){
+  const toT=Math.floor(g.coins/100);
+  if(toT<1){showToast('Reikia bent 100 ⬡!','err');return;}
+  g.coins-=toT*100;
+  user.coins=(parseInt(user.coins)||0)+toT;
+  saveState();
+  saveUser();
+  updateUI();
+  showToast('+'+toT+' casino jevrejų!','ok');
+}
+
+function confirmReset(){
+  if(confirm('PILNAS RESET? Prarasite VISKĄ įskaitant prestige!')){{localStorage.removeItem(SK);location.reload();}}
+}
+
+/* ── DAILY CHALLENGES ── */
+function initDailyChallenges(){
+  const today=new Date().toDateString();
+  if(challengeDay!==today){challengeDay=today;chState={};challengeBuys=0;challengeEarned=0;}
+  renderChallenges();
+}
+function checkChallenges(){
+  DAILY_CHALLENGES.forEach(ch=>{
+    if(chState[ch.id]==='done')return;
+    let prog=0;
+    if(ch.type==='clicks')prog=g.clicks;
+    if(ch.type==='earn')prog=challengeEarned;
+    if(ch.type==='buy')prog=challengeBuys;
+    if(prog>=ch.goal&&chState[ch.id]!=='claimed'){
+      chState[ch.id]='claimed';
+      g.coins+=ch.reward;g.total+=ch.reward;
+      showToast('🏆 Iššūkis: '+ch.name+' +'+ch.reward+' ⬡!','special');
+      renderChallenges();
+    }
+  });
+}
+function renderChallenges(){
+  document.getElementById('chList').innerHTML=DAILY_CHALLENGES.map(ch=>{
+    const done=chState[ch.id]==='claimed';
+    let prog=0;
+    if(ch.type==='clicks')prog=Math.min(g.clicks,ch.goal);
+    if(ch.type==='earn')prog=Math.min(challengeEarned,ch.goal);
+    if(ch.type==='buy')prog=Math.min(challengeBuys,ch.goal);
+    const pct=Math.min(100,(prog/ch.goal)*100);
+    const color=done?'var(--neon-green)':'var(--neon-cyan)';
+    return`<div class="ch-item">
+      <div class="ch-icon">${ch.icon}</div>
+      <div class="ch-info">
+        <div class="ch-name">${ch.name}</div>
+        <div class="ch-prog">${done?'✓ Atlikta':Math.floor(prog)+'/'+ch.goal}</div>
+        <div class="ch-bar-bg"><div class="ch-bar-fill" style="width:${pct}%;background:${color};"></div></div>
+      </div>
+      <div class="ch-reward">${done?'<span class="ch-done">✅</span>':'+'+ch.reward+' ⬡'}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── MILESTONES ── */
+let earnedMS=new Set(JSON.parse(localStorage.getItem('lc_ms2_'+user.username)||'[]'));
+function checkMilestones(){
+  MILESTONES.forEach((m,i)=>{
+    if(earnedMS.has(i))return;
+    let ok=false;
+    if(m.total&&g.total>=m.total)ok=true;
+    if(m.clicks&&g.clicks>=m.clicks)ok=true;
+    if(m.cps&&cps>=m.cps)ok=true;
+    if(m.pres&&g.prestigeStars>=m.pres)ok=true;
+    if(ok){earnedMS.add(i);localStorage.setItem('lc_ms2_'+user.username,JSON.stringify([...earnedMS]));showToast('🏆 '+m.label,'ok');renderMilestones();}
+  });
+}
+function renderMilestones(){
+  document.getElementById('mList').innerHTML=MILESTONES.map((m,i)=>`<span class="m-badge ${earnedMS.has(i)?'earned':''}">${m.label}</span>`).join('');
+}
+
+/* ── UPDATE UI ── */
+function fmt(n){
+  if(n>=1e12)return(n/1e12).toFixed(2)+'T';
+  if(n>=1e9)return(n/1e9).toFixed(2)+'B';
+  if(n>=1e6)return(n/1e6).toFixed(2)+'M';
+  if(n>=1e3)return(n/1e3).toFixed(2)+'K';
+  return n<1?n.toFixed(3):n.toFixed(2);
+}
+function updateUI(){
+  document.getElementById('sCoins').textContent=fmt(g.coins);
+  document.getElementById('sCps').textContent=fmt(cps)+'/s';
+  document.getElementById('sCpc').textContent=fmt(cpc);
+  document.getElementById('sTotal').textContent=fmt(g.total);
+  document.getElementById('btnSub').textContent='+'+fmt(cpc)+'/click';
+  document.getElementById('clickInfo').innerHTML='Kiekvienas spaudimas: <span style="color:var(--neon-gold)">'+fmt(cpc)+'</span> ⬡';
+  const pm=prestigeMult();
+  document.getElementById('prestigeVal').textContent='×'+pm.toFixed(2);
+  document.getElementById('prestigeStars').textContent='⭐ '+g.prestigeStars+' žvaigždžių';
+  const canP=g.total>=PRESTIGE_REQ;
+  document.getElementById('prestigeBtn').disabled=!canP;
+  document.getElementById('prestigeDoBtn').disabled=!canP;
+  document.getElementById('pReq').textContent=canP?'✓ Galima daryti Prestige!':'Reikia: '+fmt(PRESTIGE_REQ)+' ⬡ (turite: '+fmt(g.total)+')';
+  document.getElementById('pStars').textContent=g.prestigeStars;
+  document.getElementById('pMult').textContent='×'+pm.toFixed(2);
+  const toT=Math.floor(g.coins/100);
+  document.getElementById('transferInfo').textContent='Turima: '+fmt(g.coins)+' → '+toT+' casino jevrejų';
+}
+
+/* ── RENDER UPGRADES ── */
+function renderUpgrades(){
+  const cats=[...new Set(UPGRADES.map(u=>u.cat))];
+  document.getElementById('upgContainer').innerHTML=cats.map(cat=>{
+    const items=UPGRADES.filter(u=>u.cat===cat);
+    return`<div class="upg-section"><div class="upg-stitle">${cat}</div>${items.map(u=>{
+      const lvl=g.upgrades[u.id]||0,maxed=lvl>=u.max;
+      const cost=Math.floor(u.base*Math.pow(1.15,lvl));
+      const can=g.coins>=cost&&!maxed;
+      const pct=Math.min(100,(lvl/u.max)*100);
+      return`<div class="upg-card ${can?'can-afford':''} ${maxed?'maxed':''}" onclick="buyUpgrade('${u.id}')">
+        <div class="upg-icon">${u.icon}</div>
+        <div class="upg-info"><div class="upg-name">${u.name}</div><div class="upg-desc">${u.desc}</div></div>
+        <div class="upg-right"><div class="upg-cost">${maxed?'MAX':fmt(cost)+' ⬡'}</div><div class="upg-lvl">${lvl}/${u.max}</div></div>
+        <div class="upg-prog" style="width:${pct}%"></div>
+      </div>`;}).join('')}</div>`;
+  }).join('');
+}
+
+/* ── RENDER SHOP ── */
+function renderShop(){
+  document.getElementById('shopContainer').innerHTML=`
+    <div style="font-family:Orbitron,monospace;font-size:0.6rem;letter-spacing:0.3em;color:var(--text-dim);margin-bottom:12px;">◈ PARDUOTUVĖ — VIENĄ KARTĄ ◈</div>
+    ${SHOP.map(s=>{
+      const owned=!!g.shopOwned[s.id];
+      const can=g.coins>=s.cost&&!owned;
+      return`<div class="shop-card ${owned?'owned':''}" onclick="${owned?'':' buyShop(\''+s.id+'\')'}">
+        <div class="shop-icon">${s.icon}</div>
+        <div class="shop-info"><div class="shop-name">${s.name}</div><div class="shop-desc">${s.desc}</div></div>
+        <div class="shop-right">
+          ${owned?'<div class="shop-owned">✓ TURIMA</div>':'<div class="shop-cost">'+fmt(s.cost)+' ⬡</div>'}
+        </div>
+      </div>`;}).join('')}`;
+}
+
+/* ── RENDER PRESTIGE ── */
+function renderPrestige(){
+  document.getElementById('prestigePerks').innerHTML=`
+    <div style="font-family:Orbitron,monospace;font-size:0.6rem;letter-spacing:0.3em;color:var(--text-dim);margin-bottom:10px;">◈ PRESTIŽO ŽVAIGŽDĖS ◈</div>
+    ${Array.from({length:Math.max(g.prestigeStars+1,5)},(_,i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;background:${i<g.prestigeStars?'rgba(255,215,0,0.06)':'rgba(255,255,255,0.02)'};border:1px solid ${i<g.prestigeStars?'rgba(255,215,0,0.25)':'rgba(255,255,255,0.05)'};margin-bottom:6px;">
+        <span style="font-size:1.2rem">${i<g.prestigeStars?'⭐':'☆'}</span>
+        <div>
+          <div style="font-family:Orbitron,monospace;font-size:0.6rem;color:${i<g.prestigeStars?'var(--neon-gold)':'var(--text-dim)'}">ŽVAIGŽDĖ ${i+1}</div>
+          <div style="font-size:0.7rem;color:var(--text-dim)">×${Math.pow(1.5,i+1).toFixed(2)} multiplier</div>
+        </div>
+        ${i<g.prestigeStars?'<div style="margin-left:auto;font-family:Orbitron,monospace;font-size:0.6rem;color:var(--neon-green)">AKTYVUS</div>':''}
+      </div>`).join('')}`;
+}
+
+/* ── RENDER STATS ── */
+function renderStats(){
+  document.getElementById('statTable').innerHTML=`
+    <tr><td>Iš viso uždirbt</td><td>${fmt(g.total)} ⬡</td></tr>
+    <tr><td>Dabar turite</td><td>${fmt(g.coins)} ⬡</td></tr>
+    <tr><td>Per sekundę</td><td>${fmt(cps)} ⬡/s</td></tr>
+    <tr><td>Per click</td><td>${fmt(cpc)} ⬡</td></tr>
+    <tr><td>Iš viso klikų</td><td>${g.clicks.toLocaleString()}</td></tr>
+    <tr><td>Prestižai</td><td>${g.prestigeStars} ⭐</td></tr>
+    <tr><td>Prestige multiplier</td><td>×${prestigeMult().toFixed(2)}</td></tr>
+    <tr><td>Crit šansas</td><td>${Math.round(critChance*100)}%</td></tr>
+    <tr><td>Crit multiplier</td><td>×${critMult}</td></tr>
+    <tr><td>Parduotuvės daiktai</td><td>${Object.keys(g.shopOwned).length}/${SHOP.length}</td></tr>
+    <tr><td>Pasiekimai</td><td>${earnedMS.size}/${MILESTONES.length}</td></tr>
+  `;
+}
+
+/* ── TABS ── */
+function switchTab(t){
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['upgrades','shop','prestige','stats'][i]===t));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('active',c.id==='tab-'+t));
+  if(t==='stats')renderStats();
+  if(t==='prestige')renderPrestige();
+  if(t==='shop')renderShop();
+}
+
+async function saveUser(){
+  localStorage.setItem('lc_user',JSON.stringify(user));
+  try{await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'update',username:user.username,coins:user.coins,xp:user.xp,level:user.level})});}catch(e){}
+}
+function showToast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;clearTimeout(t._timer);t._timer=setTimeout(()=>{t.className=type;},3500);}
+
+/* ── INIT ── */
+loadState();
+updateUI();
+updateCombo();
+renderUpgrades();
+renderShop();
+renderPrestige();
+renderMilestones();
+setInterval(saveState,8000);
+setInterval(renderUpgrades,2000);
+
+/* ── BG ── */
+const bgC=document.getElementById('bgCanvas'),bgX=bgC.getContext('2d');
+function resizeBg(){bgC.width=innerWidth;bgC.height=innerHeight;}resizeBg();addEventListener('resize',resizeBg);
+const CLR=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const pts=Array.from({length:50},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.4+0.3,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3-.12,c:CLR[Math.floor(Math.random()*4)],a:Math.random()*.5+.2,p:Math.random()*Math.PI*2}));
+(function bgLoop(){bgX.clearRect(0,0,bgC.width,bgC.height);let g2=bgX.createRadialGradient(bgC.width*.2,bgC.height*.3,0,bgC.width*.2,bgC.height*.3,bgC.width*.6);g2.addColorStop(0,'rgba(0,87,255,0.05)');g2.addColorStop(1,'transparent');bgX.fillStyle=g2;bgX.fillRect(0,0,bgC.width,bgC.height);g2=bgX.createRadialGradient(bgC.width*.8,bgC.height*.7,0,bgC.width*.8,bgC.height*.7,bgC.width*.5);g2.addColorStop(0,'rgba(191,0,255,0.05)');g2.addColorStop(1,'transparent');bgX.fillStyle=g2;bgX.fillRect(0,0,bgC.width,bgC.height);pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.p+=.04;if(p.y<-10){p.y=bgC.height+10;p.x=Math.random()*bgC.width;}if(p.x<-10)p.x=bgC.width+10;if(p.x>bgC.width+10)p.x=-10;bgX.save();bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.shadowBlur=10;bgX.shadowColor=p.c;bgX.globalAlpha=p.a*(.6+.4*Math.sin(p.p));bgX.fillStyle=p.c;bgX.fill();bgX.restore();});requestAnimationFrame(bgLoop);})();
+const cursorEl=document.getElementById('cursor');const tColors=['#00f5ff','#bf00ff','#ff0080','#0057ff'];const tPool=[];
+for(let i=0;i<16;i++){const t=document.createElement('div');t.className='trail';const s=Math.max(3,9-i*0.35);t.style.cssText=`width:${s}px;height:${s}px;opacity:0;background:${tColors[i%4]};box-shadow:0 0 ${s*1.5}px ${tColors[i%4]};`;document.body.appendChild(t);tPool.push({el:t});}
+let mX=0,mY=0;const tPos=Array(16).fill(null).map(()=>({x:0,y:0}));
+document.addEventListener('mousemove',e=>{mX=e.clientX;mY=e.clientY;cursorEl.style.left=mX+'px';cursorEl.style.top=mY+'px';});
+(function tLoop(){tPos.unshift({x:mX,y:mY});tPos.pop();tPool.forEach((t,i)=>{t.el.style.left=tPos[i].x+'px';t.el.style.top=tPos[i].y+'px';t.el.style.opacity=Math.max(0,(1-i/16)*0.7);t.el.style.transform=`translate(-50%,-50%) scale(${Math.max(0.3,1-i/16)})`;});requestAnimationFrame(tLoop);})();
+</script>
+</body>
+</html>
