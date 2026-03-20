@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiquidCasino — Case Opening</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --neon-cyan:   #00f5ff;
+    --neon-purple: #bf00ff;
+    --neon-pink:   #ff0080;
+    --neon-green:  #00ff99;
+    --neon-red:    #ff2040;
+    --neon-gold:   #ffd700;
+    --neon-blue:   #0057ff;
+    --bg-deep:     #020408;
+    --bg-card:     rgba(255,255,255,0.03);
+    --text-dim:    rgba(255,255,255,0.5);
+  }
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Rajdhani',sans-serif; background:var(--bg-deep); color:#fff; min-height:100vh; overflow-x:hidden; cursor:none; }
+  #cursor { position:fixed; pointer-events:none; z-index:99999; width:10px; height:10px; border-radius:50%; background:var(--neon-cyan); box-shadow:0 0 10px var(--neon-cyan); transform:translate(-50%,-50%); }
+  .trail { position:fixed; pointer-events:none; z-index:99998; border-radius:50%; transform:translate(-50%,-50%); }
+  #bgCanvas { position:fixed; inset:0; z-index:0; pointer-events:none; }
+  body::before { content:''; position:fixed; inset:0; z-index:1; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events:none; opacity:0.4; }
+  #main { position:relative; z-index:2; max-width:900px; margin:0 auto; padding:0 clamp(16px,4vw,40px) 80px; }
+
+  /* TOPBAR */
+  .topbar { display:flex; align-items:center; justify-content:space-between; padding:20px 0; gap:12px; flex-wrap:wrap; }
+  .back-btn { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.2em; color:var(--text-dim); border:1px solid rgba(255,255,255,0.1); background:transparent; padding:8px 18px; border-radius:100px; cursor:none; text-decoration:none; transition:all 0.3s; }
+  .back-btn:hover { color:var(--neon-cyan); border-color:rgba(0,245,255,0.4); }
+  .balance-pill { font-family:'Orbitron',monospace; font-size:0.75rem; letter-spacing:0.15em; color:var(--neon-gold); border:1px solid rgba(255,215,0,0.3); background:rgba(255,215,0,0.06); padding:8px 20px; border-radius:100px; }
+
+  /* TITLE */
+  .page-title { font-family:'Orbitron',monospace; font-weight:900; font-size:clamp(1.8rem,6vw,3rem); background:linear-gradient(135deg,var(--neon-cyan),var(--neon-purple)); background-size:200% 200%; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:gradShift 3s ease infinite; text-align:center; margin:10px 0 6px; }
+  @keyframes gradShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+  .page-sub { text-align:center; font-size:0.75rem; letter-spacing:0.3em; color:var(--text-dim); margin-bottom:32px; }
+
+  /* CASE SELECTOR */
+  .case-selector { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:32px; }
+  .case-option { background:var(--bg-card); border:2px solid transparent; border-radius:14px; padding:16px 12px; text-align:center; cursor:none; transition:all 0.3s; position:relative; overflow:hidden; }
+  .case-option.selected { border-color:var(--neon-cyan); background:rgba(0,245,255,0.06); box-shadow:0 0 20px rgba(0,245,255,0.15); }
+  .case-option:hover { transform:translateY(-3px); }
+  .case-icon { font-size:2rem; margin-bottom:8px; display:block; }
+  .case-name { font-family:'Orbitron',monospace; font-size:0.7rem; font-weight:700; letter-spacing:0.1em; color:#fff; margin-bottom:4px; }
+  .case-price { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.15em; }
+  .case-option.cheap  .case-price { color:var(--neon-cyan); }
+  .case-option.mid    .case-price { color:var(--neon-purple); }
+  .case-option.high   .case-price { color:var(--neon-pink); }
+  .case-option.ultra  .case-price { color:var(--neon-gold); }
+  .case-option.cheap.selected  { border-color:var(--neon-cyan);   box-shadow:0 0 20px rgba(0,245,255,0.2); }
+  .case-option.mid.selected    { border-color:var(--neon-purple); box-shadow:0 0 20px rgba(191,0,255,0.2); }
+  .case-option.high.selected   { border-color:var(--neon-pink);   box-shadow:0 0 20px rgba(255,0,128,0.2); }
+  .case-option.ultra.selected  { border-color:var(--neon-gold);   box-shadow:0 0 20px rgba(255,215,0,0.2); }
+
+  /* STRIP */
+  .strip-wrap { position:relative; overflow:hidden; height:130px; border-radius:14px; background:#010306; border:1px solid rgba(0,245,255,0.2); margin-bottom:20px; }
+  .strip-wrap::before,.strip-wrap::after { content:''; position:absolute; top:0; bottom:0; width:120px; z-index:3; pointer-events:none; }
+  .strip-wrap::before { left:0; background:linear-gradient(90deg,#010306,transparent); }
+  .strip-wrap::after  { right:0; background:linear-gradient(-90deg,#010306,transparent); }
+  #marker { position:absolute; left:50%; top:0; bottom:0; width:3px; z-index:4; transform:translateX(-50%); background:var(--neon-pink); box-shadow:0 0 16px var(--neon-pink),0 0 32px rgba(255,0,128,0.4); }
+  #marker::before { content:''; position:absolute; left:50%; top:0; transform:translateX(-50%); width:0; height:0; border-left:9px solid transparent; border-right:9px solid transparent; border-top:13px solid var(--neon-pink); }
+  #marker::after  { content:''; position:absolute; left:50%; bottom:0; transform:translateX(-50%); width:0; height:0; border-left:9px solid transparent; border-right:9px solid transparent; border-bottom:13px solid var(--neon-pink); }
+  #strip { display:flex; align-items:center; height:100%; gap:6px; padding:0 4px; will-change:transform; }
+
+  /* STRIP ITEMS */
+  .sitem { flex-shrink:0; width:140px; height:108px; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:8px; border:1px solid; }
+  .sitem.common   { border-color:rgba(0,245,255,0.25);  background:rgba(0,245,255,0.04); }
+  .sitem.uncommon { border-color:rgba(191,0,255,0.35);  background:rgba(191,0,255,0.06); }
+  .sitem.rare     { border-color:rgba(255,0,128,0.4);   background:rgba(255,0,128,0.07); }
+  .sitem.epic     { border-color:rgba(255,215,0,0.45);  background:rgba(255,215,0,0.07); }
+  .sitem.legend   { border-color:rgba(255,100,0,0.5);   background:rgba(255,100,0,0.08); }
+  .sitem-bar { width:100%; height:3px; border-radius:2px; margin-bottom:4px; }
+  .sitem.common   .sitem-bar { background:var(--neon-cyan);   box-shadow:0 0 6px var(--neon-cyan); }
+  .sitem.uncommon .sitem-bar { background:var(--neon-purple); box-shadow:0 0 6px var(--neon-purple); }
+  .sitem.rare     .sitem-bar { background:var(--neon-pink);   box-shadow:0 0 6px var(--neon-pink); }
+  .sitem.epic     .sitem-bar { background:var(--neon-gold);   box-shadow:0 0 6px var(--neon-gold); }
+  .sitem.legend   .sitem-bar { background:#ff6400;            box-shadow:0 0 6px #ff6400; }
+  .sitem-mult { font-family:'Orbitron',monospace; font-size:1rem; font-weight:900; }
+  .sitem.common   .sitem-mult { color:var(--neon-cyan); }
+  .sitem.uncommon .sitem-mult { color:var(--neon-purple); }
+  .sitem.rare     .sitem-mult { color:var(--neon-pink); }
+  .sitem.epic     .sitem-mult { color:var(--neon-gold); }
+  .sitem.legend   .sitem-mult { color:#ff6400; }
+  .sitem-label { font-family:'Orbitron',monospace; font-size:0.55rem; letter-spacing:0.15em; color:rgba(255,255,255,0.5); text-transform:uppercase; }
+
+  /* WON BOX */
+  #wonBox { text-align:center; min-height:70px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; margin-bottom:20px; }
+  #wonMult { font-family:'Orbitron',monospace; font-size:2.5rem; font-weight:900; opacity:0; transform:scale(0.6); transition:all 0.6s cubic-bezier(.17,.67,.3,1.4); }
+  #wonMult.show { opacity:1; transform:scale(1); }
+  #wonCoins { font-family:'Orbitron',monospace; font-size:1rem; letter-spacing:0.2em; opacity:0; transition:opacity 0.4s 0.3s; }
+  #wonCoins.show { opacity:1; }
+
+  /* OPEN BTN */
+  .open-btn { display:block; width:100%; font-family:'Orbitron',monospace; font-size:0.85rem; letter-spacing:0.3em; font-weight:700; color:#000; background:var(--neon-cyan); border:none; padding:16px; border-radius:100px; cursor:none; transition:all 0.3s; box-shadow:0 0 24px rgba(0,245,255,0.35); margin-bottom:32px; }
+  .open-btn:hover { box-shadow:0 0 40px rgba(0,245,255,0.6); transform:scale(1.02); }
+  .open-btn:disabled { opacity:0.4; transform:none; cursor:not-allowed; }
+
+  /* ODDS TABLE */
+  .odds-title { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.4em; color:var(--text-dim); margin-bottom:14px; }
+  .odds-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin-bottom:40px; }
+  .odds-item { background:var(--bg-card); border-radius:10px; padding:12px; text-align:center; border:1px solid; }
+  .odds-item.common   { border-color:rgba(0,245,255,0.15); }
+  .odds-item.uncommon { border-color:rgba(191,0,255,0.2); }
+  .odds-item.rare     { border-color:rgba(255,0,128,0.2); }
+  .odds-item.epic     { border-color:rgba(255,215,0,0.25); }
+  .odds-item.legend   { border-color:rgba(255,100,0,0.3); }
+  .odds-mult { font-family:'Orbitron',monospace; font-size:1.1rem; font-weight:900; margin-bottom:4px; }
+  .odds-item.common   .odds-mult { color:var(--neon-cyan); }
+  .odds-item.uncommon .odds-mult { color:var(--neon-purple); }
+  .odds-item.rare     .odds-mult { color:var(--neon-pink); }
+  .odds-item.epic     .odds-mult { color:var(--neon-gold); }
+  .odds-item.legend   .odds-mult { color:#ff6400; }
+  .odds-chance { font-size:0.7rem; color:var(--text-dim); letter-spacing:0.1em; }
+  .odds-payout { font-size:0.65rem; letter-spacing:0.1em; color:rgba(255,255,255,0.3); }
+
+  /* HISTORY */
+  .hist-title { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.4em; color:var(--text-dim); margin-bottom:14px; }
+  #histList { display:flex; flex-direction:column; gap:8px; }
+  .hist-row { display:flex; align-items:center; justify-content:space-between; background:var(--bg-card); border-radius:10px; padding:10px 16px; border:1px solid rgba(255,255,255,0.05); }
+  .hist-case { font-size:0.8rem; color:var(--text-dim); letter-spacing:0.1em; }
+  .hist-result { font-family:'Orbitron',monospace; font-size:0.8rem; font-weight:700; }
+  .hist-result.win  { color:var(--neon-green); }
+  .hist-result.loss { color:var(--neon-red); }
+
+  /* TOAST */
+  #toast { position:fixed; bottom:30px; left:50%; transform:translateX(-50%) translateY(100px); z-index:9999; font-family:'Orbitron',monospace; font-size:0.7rem; letter-spacing:0.2em; padding:12px 28px; border-radius:100px; transition:transform 0.4s cubic-bezier(.17,.67,.3,1.4),opacity 0.4s; opacity:0; pointer-events:none; white-space:nowrap; }
+  #toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+  #toast.ok   { background:rgba(0,255,153,0.12); border:1px solid rgba(0,255,153,0.4); color:var(--neon-green); }
+  #toast.err  { background:rgba(255,32,64,0.12);  border:1px solid rgba(255,32,64,0.4);  color:var(--neon-red); }
+
+  footer { text-align:center; font-size:0.65rem; letter-spacing:0.2em; color:rgba(255,255,255,0.12); border-top:1px solid rgba(255,255,255,0.04); padding:20px; }
+  ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-thumb{background:var(--neon-purple);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="cursor"></div>
+<canvas id="bgCanvas"></canvas>
+<div id="toast"></div>
+
+<div id="main">
+  <div class="topbar">
+    <a href="casino.html" class="back-btn">← ATGAL</a>
+    <div class="balance-pill" id="balPill">⬡ 0 JEVREJŲ</div>
+  </div>
+
+  <div class="page-title">CASE OPENING</div>
+  <div class="page-sub">◈ PASIRINK CASE'Ą IR ATIDARYК ◈</div>
+
+  <!-- CASE SELECTOR -->
+  <div class="case-selector" id="caseSelector"></div>
+
+  <!-- STRIP -->
+  <div class="strip-wrap">
+    <div id="marker"></div>
+    <div id="strip"></div>
+  </div>
+
+  <!-- WON -->
+  <div id="wonBox">
+    <div id="wonMult"></div>
+    <div id="wonCoins"></div>
+  </div>
+
+  <!-- OPEN BTN -->
+  <button class="open-btn" id="openBtn" onclick="openCase()">📦 ATIDARYTI CASE'Ą</button>
+
+  <!-- ODDS -->
+  <div class="odds-title">◈ LAIMĖJIMŲ ŠANSAI ◈</div>
+  <div class="odds-grid" id="oddsGrid"></div>
+
+  <!-- HISTORY -->
+  <div class="hist-title">◈ PASKUTINIAI ATIDARYMAI ◈</div>
+  <div id="histList"></div>
+
+  <footer>LIQUID CASINO &nbsp;·&nbsp; Case Opening &nbsp;·&nbsp; 2026</footer>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycby_zcF3Oh62j-N_-iHqv_8Mnpo-H776lNc5f9Wr0zsgzgKW-Ugt2QsBWQo8ml_bnCKkYA/exec';
+let user = JSON.parse(localStorage.getItem('lc_user') || 'null');
+if (!user) window.location.href = 'login.html';
+
+/* ── CASES ── */
+const CASES = [
+  { id:'starter', name:'STARTER',  icon:'📦', price:5,    tier:'cheap', color:'cyan'   },
+  { id:'mid',     name:'MID',      icon:'🎁', price:20,   tier:'mid',   color:'purple' },
+  { id:'high',    name:'HIGH',     icon:'💎', price:50,   tier:'high',  color:'pink'   },
+  { id:'ultra',   name:'ULTRA',    icon:'👑', price:100,  tier:'ultra', color:'gold'   },
+  { id:'legend',  name:'LEGENDA',  icon:'🔥', price:200,  tier:'ultra', color:'gold'   },
+  { id:'god',     name:'DIEVAS',   icon:'⚡', price:500,  tier:'ultra', color:'gold'   },
+];
+
+/* ── ITEMS per case: {rarity, mult, chance} ── */
+const ITEMS = {
+  starter: [
+    { rarity:'common',   mult:0.5,  chance:40 },
+    { rarity:'common',   mult:1,    chance:25 },
+    { rarity:'uncommon', mult:2,    chance:18 },
+    { rarity:'uncommon', mult:3,    chance:10 },
+    { rarity:'rare',     mult:5,    chance:5  },
+    { rarity:'epic',     mult:10,   chance:1.5},
+    { rarity:'legend',   mult:20,   chance:0.5},
+  ],
+  mid: [
+    { rarity:'common',   mult:0.5,  chance:35 },
+    { rarity:'common',   mult:1,    chance:25 },
+    { rarity:'uncommon', mult:2,    chance:18 },
+    { rarity:'uncommon', mult:4,    chance:12 },
+    { rarity:'rare',     mult:8,    chance:6  },
+    { rarity:'epic',     mult:15,   chance:3  },
+    { rarity:'legend',   mult:30,   chance:1  },
+  ],
+  high: [
+    { rarity:'common',   mult:0.5,  chance:30 },
+    { rarity:'common',   mult:1,    chance:22 },
+    { rarity:'uncommon', mult:2.5,  chance:20 },
+    { rarity:'uncommon', mult:5,    chance:14 },
+    { rarity:'rare',     mult:10,   chance:8  },
+    { rarity:'epic',     mult:20,   chance:4  },
+    { rarity:'legend',   mult:50,   chance:2  },
+  ],
+  ultra: [
+    { rarity:'common',   mult:0.5,  chance:25 },
+    { rarity:'common',   mult:1,    chance:20 },
+    { rarity:'uncommon', mult:3,    chance:20 },
+    { rarity:'rare',     mult:7,    chance:16 },
+    { rarity:'epic',     mult:20,   chance:12 },
+    { rarity:'legend',   mult:50,   chance:5  },
+    { rarity:'legend',   mult:100,  chance:2  },
+  ],
+  legend: [
+    { rarity:'common',   mult:0.5,  chance:20 },
+    { rarity:'uncommon', mult:2,    chance:20 },
+    { rarity:'rare',     mult:5,    chance:20 },
+    { rarity:'epic',     mult:15,   chance:20 },
+    { rarity:'legend',   mult:50,   chance:14 },
+    { rarity:'legend',   mult:100,  chance:5  },
+    { rarity:'legend',   mult:200,  chance:1  },
+  ],
+  god: [
+    { rarity:'uncommon', mult:1,    chance:20 },
+    { rarity:'rare',     mult:3,    chance:20 },
+    { rarity:'epic',     mult:10,   chance:20 },
+    { rarity:'legend',   mult:30,   chance:20 },
+    { rarity:'legend',   mult:100,  chance:14 },
+    { rarity:'legend',   mult:250,  chance:5  },
+    { rarity:'legend',   mult:500,  chance:1  },
+  ],
+};
+
+let selectedCase = CASES[0];
+let spinning = false;
+let history = JSON.parse(localStorage.getItem('lc_case_hist') || '[]');
+const ITEM_W = 146;
+
+/* ── Build case selector ── */
+function buildSelector() {
+  document.getElementById('caseSelector').innerHTML = CASES.map(c => `
+    <div class="case-option ${c.tier} ${c.id === selectedCase.id ? 'selected' : ''}" onclick="selectCase('${c.id}')">
+      <span class="case-icon">${c.icon}</span>
+      <div class="case-name">${c.name}</div>
+      <div class="case-price">${c.price} JEVREJŲ</div>
+    </div>`).join('');
+}
+
+function selectCase(id) {
+  if (spinning) return;
+  selectedCase = CASES.find(c => c.id === id);
+  buildSelector();
+  buildOdds();
+  document.getElementById('openBtn').textContent = `${selectedCase.icon} ATIDARYTI — ${selectedCase.price} JEVREJŲ`;
+  resetWon();
+}
+
+/* ── Random item ── */
+function randItem(caseId) {
+  const pool = ITEMS[caseId];
+  const total = pool.reduce((s,i) => s + i.chance, 0);
+  let r = Math.random() * total;
+  for (const item of pool) { r -= item.chance; if (r <= 0) return item; }
+  return pool[pool.length - 1];
+}
+
+/* ── Build strip ── */
+function buildStrip(items) {
+  const strip = document.getElementById('strip');
+  strip.innerHTML = items.map(item => `
+    <div class="sitem ${item.rarity}">
+      <div class="sitem-bar"></div>
+      <div class="sitem-mult">${item.mult}x</div>
+      <div class="sitem-label">${item.rarity}</div>
+    </div>`).join('');
+}
+
+/* ── OPEN ── */
+function openCase() {
+  if (spinning) return;
+  if (user.coins < selectedCase.price) { showToast('Nepakankamai jevrejų!', 'err'); return; }
+
+  spinning = true;
+  document.getElementById('openBtn').disabled = true;
+  resetWon();
+
+  user.coins -= selectedCase.price;
+  saveUser();
+  updateBal();
+
+  const winnerIdx = 44 + Math.floor(Math.random() * 10);
+  const winner = randItem(selectedCase.id);
+  const items = Array.from({length: 60}, (_, i) => i === winnerIdx ? winner : randItem(selectedCase.id));
+  buildStrip(items);
+
+  const strip = document.getElementById('strip');
+  const outer = strip.parentElement;
+  const centerOffset = outer.offsetWidth / 2;
+  const targetX = -(winnerIdx * ITEM_W + ITEM_W / 2 - centerOffset) + (Math.random() * 60 - 30);
+
+  strip.style.transition = 'none';
+  strip.style.transform  = 'translateX(0)';
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const dur = 4000 + Math.random() * 1500;
+    strip.style.transition = `transform ${dur}ms cubic-bezier(0.05,0.8,0.3,1)`;
+    strip.style.transform  = `translateX(${targetX}px)`;
+
+    setTimeout(() => {
+      const won = Math.floor(selectedCase.price * winner.mult);
+      user.coins += won;
+      user.xp    += Math.floor(selectedCase.price / 5);
+      user.level  = getLevel(user.xp);
+      saveUser();
+      updateBal();
+
+      showWon(winner, won);
+      addHistory(selectedCase, winner, won);
+
+      spinning = false;
+      document.getElementById('openBtn').disabled = false;
+    }, dur + 200);
+  }));
+}
+
+function resetWon() {
+  const m = document.getElementById('wonMult');
+  const c = document.getElementById('wonCoins');
+  m.className = ''; m.textContent = '';
+  c.className = ''; c.textContent = '';
+}
+
+function showWon(item, coins) {
+  const m = document.getElementById('wonMult');
+  const c = document.getElementById('wonCoins');
+  const colors = { common:'#00f5ff', uncommon:'#bf00ff', rare:'#ff0080', epic:'#ffd700', legend:'#ff6400' };
+  m.style.color = colors[item.rarity];
+  m.style.filter = `drop-shadow(0 0 20px ${colors[item.rarity]})`;
+  m.textContent = item.mult + 'x';
+  m.classList.add('show');
+  const profit = coins - selectedCase.price;
+  c.style.color = profit >= 0 ? '#00ff99' : '#ff2040';
+  c.textContent = (profit >= 0 ? '+' : '') + profit + ' JEVREJŲ (gauta: ' + coins + ')';
+  c.classList.add('show');
+}
+
+/* ── Odds ── */
+function buildOdds() {
+  const pool = ITEMS[selectedCase.id];
+  document.getElementById('oddsGrid').innerHTML = pool.map(item => `
+    <div class="odds-item ${item.rarity}">
+      <div class="odds-mult">${item.mult}x</div>
+      <div class="odds-chance">${item.chance}% šansas</div>
+      <div class="odds-payout">= ${Math.floor(selectedCase.price * item.mult)} jev.</div>
+    </div>`).join('');
+}
+
+/* ── History ── */
+function addHistory(c, item, won) {
+  const profit = won - c.price;
+  history.unshift({ case: c.name, mult: item.mult, won, profit, rarity: item.rarity });
+  if (history.length > 20) history.pop();
+  localStorage.setItem('lc_case_hist', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  if (!history.length) { document.getElementById('histList').innerHTML = '<div style="text-align:center;color:var(--text-dim);font-size:0.75rem;padding:20px;">Dar neatidarytas nė vienas case</div>'; return; }
+  document.getElementById('histList').innerHTML = history.slice(0,10).map(h => `
+    <div class="hist-row">
+      <span class="hist-case">${h.case} CASE · ${h.mult}x</span>
+      <span class="hist-result ${h.profit >= 0 ? 'win' : 'loss'}">${h.profit >= 0 ? '+' : ''}${h.profit} jev.</span>
+    </div>`).join('');
+}
+
+/* ── Helpers ── */
+function getLevel(xp) {
+  const lvls = [0,100,300,600,1000,1500,2200,3000,4000,5500];
+  let l = 1;
+  for (let i = 0; i < lvls.length; i++) { if (xp >= lvls[i]) l = i+1; }
+  return l;
+}
+
+function updateBal() {
+  document.getElementById('balPill').textContent = '⬡ ' + user.coins.toLocaleString() + ' JEVREJŲ';
+}
+
+async function saveUser() {
+  localStorage.setItem('lc_user', JSON.stringify(user));
+  try {
+    await fetch(API, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'update', username:user.username, coins:user.coins, xp:user.xp, level:user.level })
+    });
+  } catch(e) {}
+}
+
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `show ${type}`;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = type; }, 3000);
+}
+
+/* ── Init ── */
+buildSelector();
+buildOdds();
+updateBal();
+renderHistory();
+document.getElementById('openBtn').textContent = `${selectedCase.icon} ATIDARYTI — ${selectedCase.price} JEVREJŲ`;
+
+/* ── BG ── */
+const bgC=document.getElementById('bgCanvas'),bgX=bgC.getContext('2d');
+function resizeBg(){bgC.width=innerWidth;bgC.height=innerHeight;}resizeBg();addEventListener('resize',resizeBg);
+const CLR=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const pts=Array.from({length:55},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.4+0.3,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3-.12,c:CLR[Math.floor(Math.random()*4)],a:Math.random()*.5+.2,p:Math.random()*Math.PI*2}));
+(function bgLoop(){bgX.clearRect(0,0,bgC.width,bgC.height);let g=bgX.createRadialGradient(bgC.width*.2,bgC.height*.3,0,bgC.width*.2,bgC.height*.3,bgC.width*.6);g.addColorStop(0,'rgba(0,87,255,0.05)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);g=bgX.createRadialGradient(bgC.width*.8,bgC.height*.7,0,bgC.width*.8,bgC.height*.7,bgC.width*.5);g.addColorStop(0,'rgba(191,0,255,0.05)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.p+=.04;if(p.y<-10){p.y=bgC.height+10;p.x=Math.random()*bgC.width;}if(p.x<-10)p.x=bgC.width+10;if(p.x>bgC.width+10)p.x=-10;bgX.save();bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.shadowBlur=10;bgX.shadowColor=p.c;bgX.globalAlpha=p.a*(.6+.4*Math.sin(p.p));bgX.fillStyle=p.c;bgX.fill();bgX.restore();});requestAnimationFrame(bgLoop);})();
+
+/* ── Cursor ── */
+const cursorEl=document.getElementById('cursor');
+const tColors=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const tPool=[];
+for(let i=0;i<16;i++){const t=document.createElement('div');t.className='trail';const s=Math.max(3,9-i*0.35);t.style.cssText=`width:${s}px;height:${s}px;opacity:0;background:${tColors[i%4]};box-shadow:0 0 ${s*1.5}px ${tColors[i%4]};`;document.body.appendChild(t);tPool.push({el:t});}
+let mX=0,mY=0;const tPos=Array(16).fill(null).map(()=>({x:0,y:0}));
+document.addEventListener('mousemove',e=>{mX=e.clientX;mY=e.clientY;cursorEl.style.left=mX+'px';cursorEl.style.top=mY+'px';});
+(function tLoop(){tPos.unshift({x:mX,y:mY});tPos.pop();tPool.forEach((t,i)=>{t.el.style.left=tPos[i].x+'px';t.el.style.top=tPos[i].y+'px';t.el.style.opacity=Math.max(0,(1-i/16)*0.7);t.el.style.transform=`translate(-50%,-50%) scale(${Math.max(0.3,1-i/16)})`;});requestAnimationFrame(tLoop);})();
+</script>
+</body>
+</html>
