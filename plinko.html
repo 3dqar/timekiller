@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiquidCasino — Plinko</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --neon-cyan:   #00f5ff;
+    --neon-purple: #bf00ff;
+    --neon-pink:   #ff0080;
+    --neon-green:  #00ff99;
+    --neon-red:    #ff2040;
+    --neon-gold:   #ffd700;
+    --bg-deep:     #020408;
+    --bg-card:     rgba(255,255,255,0.03);
+    --text-dim:    rgba(255,255,255,0.5);
+  }
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Rajdhani',sans-serif; background:var(--bg-deep); color:#fff; min-height:100vh; overflow-x:hidden; cursor:none; }
+  #cursor { position:fixed; pointer-events:none; z-index:99999; width:10px; height:10px; border-radius:50%; background:var(--neon-cyan); box-shadow:0 0 10px var(--neon-cyan); transform:translate(-50%,-50%); }
+  .trail { position:fixed; pointer-events:none; z-index:99998; border-radius:50%; transform:translate(-50%,-50%); }
+  #bgCanvas { position:fixed; inset:0; z-index:0; pointer-events:none; }
+  body::before { content:''; position:fixed; inset:0; z-index:1; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events:none; opacity:0.4; }
+  #main { position:relative; z-index:2; max-width:700px; margin:0 auto; padding:0 clamp(16px,4vw,40px) 80px; }
+
+  .topbar { display:flex; align-items:center; justify-content:space-between; padding:20px 0; gap:12px; flex-wrap:wrap; }
+  .back-btn { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.2em; color:var(--text-dim); border:1px solid rgba(255,255,255,0.1); background:transparent; padding:8px 18px; border-radius:100px; cursor:none; text-decoration:none; transition:all 0.3s; }
+  .back-btn:hover { color:var(--neon-cyan); border-color:rgba(0,245,255,0.4); }
+  .balance-pill { font-family:'Orbitron',monospace; font-size:0.75rem; letter-spacing:0.15em; color:var(--neon-gold); border:1px solid rgba(255,215,0,0.3); background:rgba(255,215,0,0.06); padding:8px 20px; border-radius:100px; }
+
+  .page-title { font-family:'Orbitron',monospace; font-weight:900; font-size:clamp(1.8rem,6vw,3rem); background:linear-gradient(135deg,var(--neon-pink),var(--neon-gold)); background-size:200% 200%; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:gradShift 3s ease infinite; text-align:center; margin:10px 0 6px; }
+  @keyframes gradShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+  .page-sub { text-align:center; font-size:0.75rem; letter-spacing:0.3em; color:var(--text-dim); margin-bottom:24px; }
+
+  /* PLINKO CANVAS */
+  .plinko-wrap { display:flex; flex-direction:column; align-items:center; gap:0; }
+  #plinkoCanvas { border-radius:12px; background:#010306; border:1px solid rgba(0,245,255,0.15); box-shadow:0 0 40px rgba(0,245,255,0.08); max-width:100%; }
+
+  /* RESULT */
+  #resultBox { text-align:center; min-height:50px; display:flex; align-items:center; justify-content:center; gap:12px; margin:12px 0; }
+  #resultMult { font-family:'Orbitron',monospace; font-size:2rem; font-weight:900; opacity:0; transform:scale(0.6); transition:all 0.5s cubic-bezier(.17,.67,.3,1.4); }
+  #resultMult.show { opacity:1; transform:scale(1); }
+  #resultCoins { font-family:'Orbitron',monospace; font-size:0.9rem; letter-spacing:0.15em; opacity:0; transition:opacity 0.4s 0.2s; }
+  #resultCoins.show { opacity:1; }
+
+  /* CONTROLS */
+  .controls { background:var(--bg-card); border:1px solid rgba(255,0,128,0.15); border-radius:16px; padding:24px; margin-bottom:20px; display:flex; flex-direction:column; gap:16px; }
+  .ctrl-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .ctrl-label { font-family:'Orbitron',monospace; font-size:0.6rem; letter-spacing:0.3em; color:var(--text-dim); min-width:80px; }
+
+  /* RISK */
+  .risk-btns { display:flex; gap:8px; }
+  .risk-btn { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.15em; padding:8px 16px; border-radius:100px; border:1px solid; cursor:none; transition:all 0.3s; background:transparent; }
+  .risk-btn.low    { color:var(--neon-green);  border-color:rgba(0,255,153,0.3); }
+  .risk-btn.medium { color:var(--neon-gold);   border-color:rgba(255,215,0,0.3); }
+  .risk-btn.high   { color:var(--neon-red);    border-color:rgba(255,32,64,0.3); }
+  .risk-btn.low.active    { background:rgba(0,255,153,0.12);  box-shadow:0 0 14px rgba(0,255,153,0.3); }
+  .risk-btn.medium.active { background:rgba(255,215,0,0.1);   box-shadow:0 0 14px rgba(255,215,0,0.3); }
+  .risk-btn.high.active   { background:rgba(255,32,64,0.12);  box-shadow:0 0 14px rgba(255,32,64,0.3); }
+
+  /* ROWS */
+  .rows-btns { display:flex; gap:6px; }
+  .rows-btn { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.1em; padding:7px 14px; border-radius:100px; border:1px solid rgba(0,245,255,0.2); background:transparent; color:var(--text-dim); cursor:none; transition:all 0.2s; }
+  .rows-btn.active { border-color:var(--neon-cyan); color:var(--neon-cyan); background:rgba(0,245,255,0.08); }
+
+  /* BET */
+  .amount-presets { display:flex; gap:6px; flex-wrap:wrap; }
+  .preset-btn { font-family:'Orbitron',monospace; font-size:0.6rem; letter-spacing:0.1em; padding:6px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.12); background:transparent; color:var(--text-dim); cursor:none; transition:all 0.2s; }
+  .preset-btn:hover { border-color:rgba(0,245,255,0.4); color:var(--neon-cyan); }
+  #betInput { font-family:'Orbitron',monospace; font-size:0.85rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:8px 14px; border-radius:10px; outline:none; width:110px; transition:all 0.2s; }
+  #betInput:focus { border-color:rgba(255,0,128,0.4); }
+
+  /* DROP BTN */
+  .drop-btn { display:block; width:100%; font-family:'Orbitron',monospace; font-size:0.85rem; letter-spacing:0.3em; font-weight:700; color:#000; background:linear-gradient(135deg,var(--neon-pink),var(--neon-gold)); border:none; padding:15px; border-radius:100px; cursor:none; transition:all 0.3s; box-shadow:0 0 24px rgba(255,0,128,0.35); }
+  .drop-btn:hover { box-shadow:0 0 40px rgba(255,0,128,0.6); transform:scale(1.02); }
+  .drop-btn:disabled { opacity:0.4; transform:none; }
+
+  /* MULTIPLIERS BAR */
+  .mult-bar { display:flex; width:100%; margin-top:0; }
+  .mult-cell { flex:1; text-align:center; padding:6px 2px; font-family:'Orbitron',monospace; font-size:clamp(0.45rem,1.5vw,0.6rem); font-weight:700; border-radius:6px; transition:all 0.3s; }
+
+  /* HISTORY */
+  .hist-title { font-family:'Orbitron',monospace; font-size:0.65rem; letter-spacing:0.4em; color:var(--text-dim); margin-bottom:14px; margin-top:28px; }
+  .hist-list { display:flex; flex-direction:column; gap:6px; }
+  .hist-row { display:flex; align-items:center; justify-content:space-between; background:var(--bg-card); border-radius:8px; padding:8px 14px; border:1px solid rgba(255,255,255,0.04); }
+  .hist-mult { font-family:'Orbitron',monospace; font-size:0.75rem; font-weight:700; }
+  .hist-profit { font-family:'Orbitron',monospace; font-size:0.75rem; }
+  .hist-profit.win  { color:var(--neon-green); }
+  .hist-profit.loss { color:var(--neon-red); }
+
+  #toast { position:fixed; bottom:30px; left:50%; transform:translateX(-50%) translateY(100px); z-index:9999; font-family:'Orbitron',monospace; font-size:0.7rem; letter-spacing:0.2em; padding:12px 28px; border-radius:100px; transition:transform 0.4s cubic-bezier(.17,.67,.3,1.4),opacity 0.4s; opacity:0; pointer-events:none; white-space:nowrap; }
+  #toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+  #toast.ok  { background:rgba(0,255,153,0.12); border:1px solid rgba(0,255,153,0.4); color:var(--neon-green); }
+  #toast.err { background:rgba(255,32,64,0.12);  border:1px solid rgba(255,32,64,0.4);  color:var(--neon-red); }
+
+  footer { text-align:center; font-size:0.65rem; letter-spacing:0.2em; color:rgba(255,255,255,0.12); border-top:1px solid rgba(255,255,255,0.04); padding:20px; margin-top:20px; }
+  ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-thumb{background:var(--neon-purple);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="cursor"></div>
+<canvas id="bgCanvas"></canvas>
+<div id="toast"></div>
+
+<div id="main">
+  <div class="topbar">
+    <a href="casino.html" class="back-btn">← ATGAL</a>
+    <div class="balance-pill" id="balPill">⬡ 0 JEVREJŲ</div>
+  </div>
+
+  <div class="page-title">PLINKO</div>
+  <div class="page-sub">◈ LEISK KAMUOLIUKĄ IR LAIMĖK ◈</div>
+
+  <div class="plinko-wrap">
+    <canvas id="plinkoCanvas"></canvas>
+    <div class="mult-bar" id="multBar"></div>
+  </div>
+
+  <div id="resultBox">
+    <div id="resultMult"></div>
+    <div id="resultCoins"></div>
+  </div>
+
+  <div class="controls">
+    <div class="ctrl-row">
+      <span class="ctrl-label">RIZIKA</span>
+      <div class="risk-btns">
+        <button class="risk-btn low active"    onclick="setRisk('low')">ŽEMA</button>
+        <button class="risk-btn medium"        onclick="setRisk('medium')">VIDUTINĖ</button>
+        <button class="risk-btn high"          onclick="setRisk('high')">AUKŠTA</button>
+      </div>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">EILUTĖS</span>
+      <div class="rows-btns">
+        <button class="rows-btn active" onclick="setRows(8)">8</button>
+        <button class="rows-btn"        onclick="setRows(12)">12</button>
+        <button class="rows-btn"        onclick="setRows(16)">16</button>
+      </div>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">SUMA</span>
+      <div class="amount-presets">
+        <button class="preset-btn" onclick="setBet(10)">10</button>
+        <button class="preset-btn" onclick="setBet(25)">25</button>
+        <button class="preset-btn" onclick="setBet(50)">50</button>
+        <button class="preset-btn" onclick="setBet(100)">100</button>
+      </div>
+      <input id="betInput" type="number" min="1" value="10" />
+    </div>
+    <button class="drop-btn" id="dropBtn" onclick="dropBall()">🎯 LEISTI KAMUOLIUKĄ</button>
+  </div>
+
+  <div class="hist-title">◈ ISTORIJA ◈</div>
+  <div class="hist-list" id="histList"></div>
+
+  <footer>LIQUID CASINO &nbsp;·&nbsp; Plinko &nbsp;·&nbsp; 2026</footer>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycby_zcF3Oh62j-N_-iHqv_8Mnpo-H776lNc5f9Wr0zsgzgKW-Ugt2QsBWQo8ml_bnCKkYA/exec';
+let user = JSON.parse(localStorage.getItem('lc_user') || 'null');
+if (!user) window.location.href = 'login.html';
+
+/* ── CONFIG ── */
+const MULTS = {
+  low: {
+    8:  [5.6, 2.1, 1.1, 1, 0.5, 1, 1.1, 2.1, 5.6],
+    12: [8.9, 3, 1.4, 1.1, 1, 0.5, 1, 1.1, 1.4, 3, 8.9],
+    16: [16, 9, 2, 1.4, 1.4, 1.2, 1.1, 1, 0.5, 1, 1.1, 1.2, 1.4, 1.4, 2, 9, 16],
+  },
+  medium: {
+    8:  [13, 3, 1.3, 0.7, 0.4, 0.7, 1.3, 3, 13],
+    12: [33, 11, 4, 2, 1.1, 0.6, 0.3, 0.6, 1.1, 2, 4, 11, 33],
+    16: [110, 41, 10, 5, 3, 1.5, 1, 0.5, 0.3, 0.5, 1, 1.5, 3, 5, 10, 41, 110],
+  },
+  high: {
+    8:  [29, 4, 1.5, 0.3, 0.2, 0.3, 1.5, 4, 29],
+    12: [141, 26, 9, 2, 0.9, 0.3, 0.2, 0.3, 0.9, 2, 9, 26, 141],
+    16: [999, 130, 26, 9, 4, 2, 0.2, 0.2, 0.2, 0.2, 2, 4, 9, 26, 130, 999],
+  },
+};
+
+const MULT_COLORS = {
+  low:    ['#ff6400','#bf00ff','#00f5ff','#00f5ff','#00ff99','#00f5ff','#00f5ff','#bf00ff','#ff6400'],
+  medium: ['#ff0080','#ff6400','#bf00ff','#00f5ff','#00f5ff','#00ff99','#ff2040','#00ff99','#00f5ff','#00f5ff','#bf00ff','#ff6400','#ff0080'],
+  high:   ['#ffd700','#ff0080','#ff6400','#bf00ff','#00f5ff','#00ff99','#ff2040','#ff2040','#ff2040','#ff2040','#00ff99','#00f5ff','#bf00ff','#ff6400','#ff0080','#ffd700'],
+};
+
+let risk = 'low';
+let rows = 8;
+let dropping = false;
+let history = JSON.parse(localStorage.getItem('lc_plinko_hist') || '[]');
+
+const canvas = document.getElementById('plinkoCanvas');
+const ctx    = canvas.getContext('2d');
+
+const PAD  = 28;
+const BALL_R = 7;
+const PIN_R  = 4;
+
+function canvasSize() {
+  const w = Math.min(640, window.innerWidth - 32 - 80);
+  canvas.width  = w;
+  canvas.height = w * 1.0;
+  return w;
+}
+
+function getPins() {
+  const w = canvas.width, h = canvas.height;
+  const pins = [];
+  for (let r = 0; r < rows; r++) {
+    const cols = r + 2;
+    const spacing = (w - PAD*2) / (rows + 1);
+    const ySpacing = (h - PAD*2 - 60) / (rows + 1);
+    const rowW = cols * spacing;
+    const startX = w/2 - rowW/2 + spacing/2;
+    for (let c = 0; c < cols; c++) {
+      pins.push({ x: startX + c*spacing, y: PAD + (r+1)*ySpacing });
+    }
+  }
+  return pins;
+}
+
+function getBuckets() {
+  const w = canvas.width, h = canvas.height;
+  const mults = MULTS[risk][rows];
+  const n = mults.length;
+  const bw = (w - PAD*2) / n;
+  return mults.map((m,i) => ({
+    x: PAD + i*bw,
+    w: bw,
+    y: h - 54,
+    h: 44,
+    mult: m,
+    color: (MULT_COLORS[risk][rows] || MULT_COLORS[risk].medium || [])[i] || '#00f5ff'
+  }));
+}
+
+function draw(ball) {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+
+  const pins = getPins();
+  pins.forEach(p => {
+    ctx.beginPath(); ctx.arc(p.x, p.y, PIN_R, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,245,255,0.7)';
+    ctx.shadowBlur = 6; ctx.shadowColor = '#00f5ff';
+    ctx.fill(); ctx.shadowBlur = 0;
+  });
+
+  const buckets = getBuckets();
+  buckets.forEach(b => {
+    ctx.fillStyle = b.color + '22';
+    ctx.strokeStyle = b.color + '66';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(b.x+1, b.y, b.w-2, b.h);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = b.color;
+    ctx.font = `bold ${Math.min(10,b.w*0.3)}px Orbitron,monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(b.mult+'x', b.x + b.w/2, b.y + b.h/2 + 4);
+  });
+
+  if (ball) {
+    ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI*2);
+    const bg = ctx.createRadialGradient(ball.x-2,ball.y-2,1,ball.x,ball.y,BALL_R);
+    bg.addColorStop(0,'#ff80c0'); bg.addColorStop(1,'#ff0080');
+    ctx.fillStyle = bg;
+    ctx.shadowBlur = 16; ctx.shadowColor = '#ff0080';
+    ctx.fill(); ctx.shadowBlur = 0;
+  }
+}
+
+/* ── Simulate path ── */
+function simulatePath() {
+  const pins = getPins();
+  const w = canvas.width;
+  const spacing = (w - PAD*2) / (rows + 1);
+  let col = 0;
+  const dirs = [];
+  for (let r = 0; r < rows; r++) {
+    const d = Math.random() < 0.5 ? 0 : 1;
+    dirs.push(d);
+    col += d;
+  }
+  return { finalCol: col, dirs };
+}
+
+/* ── Animate ball ── */
+function dropBall() {
+  if (dropping) return;
+  const bet = parseInt(document.getElementById('betInput').value) || 0;
+  if (bet < 1) { showToast('Įvesk statymą!', 'err'); return; }
+  if (bet > user.coins) { showToast('Nepakankamai jevrejų!', 'err'); return; }
+
+  dropping = true;
+  document.getElementById('dropBtn').disabled = true;
+  resetResult();
+
+  user.coins -= bet;
+  saveUser(); updateBal();
+
+  const { finalCol, dirs } = simulatePath();
+  const pins = getPins();
+  const w = canvas.width;
+  const h = canvas.height;
+  const spacing = (w - PAD*2) / (rows + 1);
+  const ySpacing = (h - PAD*2 - 60) / (rows + 1);
+
+  let bx = w/2;
+  let by = PAD - 10;
+
+  const keyframes = [{ x: bx, y: by }];
+  let curCol = 0;
+
+  for (let r = 0; r < rows; r++) {
+    const cols = r + 2;
+    const rowW = cols * spacing;
+    const startX = w/2 - rowW/2 + spacing/2;
+    const pinX = startX + curCol * spacing;
+    const pinY = PAD + (r+1)*ySpacing;
+    const dir = dirs[r];
+    bx = pinX + (dir === 0 ? -spacing/2 : spacing/2);
+    by = pinY + ySpacing*0.5;
+    keyframes.push({ x: pinX, y: pinY - PIN_R - BALL_R - 2 });
+    keyframes.push({ x: bx, y: by });
+    curCol += dir;
+  }
+
+  const buckets = getBuckets();
+  const bucket = buckets[finalCol] || buckets[buckets.length-1];
+  keyframes.push({ x: bucket.x + bucket.w/2, y: bucket.y - BALL_R });
+
+  let ki = 0, t = 0;
+  const SPEED = 0.06;
+
+  function anim() {
+    if (ki >= keyframes.length - 1) {
+      draw({ x: keyframes[keyframes.length-1].x, y: keyframes[keyframes.length-1].y });
+      onLand(bucket, bet);
+      return;
+    }
+    t += SPEED;
+    if (t >= 1) { t = 0; ki++; }
+    if (ki >= keyframes.length - 1) { requestAnimationFrame(anim); return; }
+    const a = keyframes[ki], b = keyframes[ki+1];
+    const cx = a.x + (b.x - a.x)*t;
+    const cy = a.y + (b.y - a.y)*t;
+    draw({ x:cx, y:cy });
+    requestAnimationFrame(anim);
+  }
+  requestAnimationFrame(anim);
+}
+
+function onLand(bucket, bet) {
+  const won    = Math.floor(bet * bucket.mult);
+  const profit = won - bet;
+  user.coins  += won;
+  user.xp     += Math.floor(bet/10);
+  user.level   = getLevel(user.xp);
+  saveUser(); updateBal();
+
+  const rm = document.getElementById('resultMult');
+  const rc = document.getElementById('resultCoins');
+  rm.textContent = bucket.mult + 'x';
+  rm.style.color  = bucket.color;
+  rm.style.filter = `drop-shadow(0 0 20px ${bucket.color})`;
+  rm.classList.add('show');
+  rc.textContent = (profit>=0?'+':'')+profit+' JEVREJŲ';
+  rc.style.color = profit>=0?'var(--neon-green)':'var(--neon-red)';
+  rc.classList.add('show');
+
+  if (profit > 0) showToast('+'+profit+' jevrejų! 🎉','ok');
+  else showToast(profit+' jevrejų','err');
+
+  history.unshift({ mult: bucket.mult, bet, won, profit });
+  if (history.length > 20) history.pop();
+  localStorage.setItem('lc_plinko_hist', JSON.stringify(history));
+  renderHistory();
+
+  dropping = false;
+  document.getElementById('dropBtn').disabled = false;
+}
+
+function resetResult() {
+  const rm=document.getElementById('resultMult'), rc=document.getElementById('resultCoins');
+  rm.className=''; rm.textContent=''; rc.className=''; rc.textContent='';
+}
+
+/* ── Controls ── */
+function setRisk(r) {
+  risk = r;
+  document.querySelectorAll('.risk-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.risk-btn.'+r).classList.add('active');
+  buildMultBar(); draw(null);
+}
+
+function setRows(r) {
+  rows = r;
+  document.querySelectorAll('.rows-btn').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+  buildMultBar(); draw(null);
+}
+
+function setBet(v) { document.getElementById('betInput').value=v; }
+
+function buildMultBar() {
+  const mults = MULTS[risk][rows];
+  const colors = MULT_COLORS[risk][rows] || MULT_COLORS.low[8];
+  document.getElementById('multBar').innerHTML = mults.map((m,i)=>`
+    <div class="mult-cell" style="color:${colors[i]||'#00f5ff'};background:${colors[i]||'#00f5ff'}18;border:1px solid ${colors[i]||'#00f5ff'}44;">${m}x</div>`).join('');
+}
+
+function renderHistory() {
+  if (!history.length) { document.getElementById('histList').innerHTML='<div style="text-align:center;color:var(--text-dim);font-size:0.75rem;padding:16px;">Dar nebuvo žaidimų</div>'; return; }
+  document.getElementById('histList').innerHTML = history.slice(0,10).map(h=>`
+    <div class="hist-row">
+      <span class="hist-mult" style="color:${h.mult>=2?'var(--neon-green)':h.mult>=1?'var(--neon-gold)':'var(--neon-red)'}">${h.mult}x</span>
+      <span class="hist-profit ${h.profit>=0?'win':'loss'}">${h.profit>=0?'+':''}${h.profit} jev.</span>
+    </div>`).join('');
+}
+
+function getLevel(xp){const l=[0,100,300,600,1000,1500,2200,3000,4000,5500];let lv=1;for(let i=0;i<l.length;i++){if(xp>=l[i])lv=i+1;}return lv;}
+function updateBal(){document.getElementById('balPill').textContent='⬡ '+user.coins.toLocaleString()+' JEVREJŲ';}
+async function saveUser(){localStorage.setItem('lc_user',JSON.stringify(user));try{await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'update',username:user.username,coins:user.coins,xp:user.xp,level:user.level})});}catch(e){}}
+function showToast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;clearTimeout(t._timer);t._timer=setTimeout(()=>{t.className=type;},3000);}
+
+/* ── Init ── */
+canvasSize();
+buildMultBar();
+draw(null);
+updateBal();
+renderHistory();
+window.addEventListener('resize',()=>{ canvasSize(); buildMultBar(); draw(null); });
+
+/* ── BG ── */
+const bgC=document.getElementById('bgCanvas'),bgX=bgC.getContext('2d');
+function resizeBg(){bgC.width=innerWidth;bgC.height=innerHeight;}resizeBg();addEventListener('resize',resizeBg);
+const CLR=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const pts=Array.from({length:55},()=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.4+0.3,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3-.12,c:CLR[Math.floor(Math.random()*4)],a:Math.random()*.5+.2,p:Math.random()*Math.PI*2}));
+(function bgLoop(){bgX.clearRect(0,0,bgC.width,bgC.height);let g=bgX.createRadialGradient(bgC.width*.2,bgC.height*.3,0,bgC.width*.2,bgC.height*.3,bgC.width*.6);g.addColorStop(0,'rgba(0,87,255,0.05)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);g=bgX.createRadialGradient(bgC.width*.8,bgC.height*.7,0,bgC.width*.8,bgC.height*.7,bgC.width*.5);g.addColorStop(0,'rgba(191,0,255,0.05)');g.addColorStop(1,'transparent');bgX.fillStyle=g;bgX.fillRect(0,0,bgC.width,bgC.height);pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.p+=.04;if(p.y<-10){p.y=bgC.height+10;p.x=Math.random()*bgC.width;}if(p.x<-10)p.x=bgC.width+10;if(p.x>bgC.width+10)p.x=-10;bgX.save();bgX.beginPath();bgX.arc(p.x,p.y,p.r,0,Math.PI*2);bgX.shadowBlur=10;bgX.shadowColor=p.c;bgX.globalAlpha=p.a*(.6+.4*Math.sin(p.p));bgX.fillStyle=p.c;bgX.fill();bgX.restore();});requestAnimationFrame(bgLoop);})();
+
+/* ── Cursor ── */
+const cursorEl=document.getElementById('cursor');
+const tColors=['#00f5ff','#bf00ff','#ff0080','#0057ff'];
+const tPool=[];
+for(let i=0;i<16;i++){const t=document.createElement('div');t.className='trail';const s=Math.max(3,9-i*0.35);t.style.cssText=`width:${s}px;height:${s}px;opacity:0;background:${tColors[i%4]};box-shadow:0 0 ${s*1.5}px ${tColors[i%4]};`;document.body.appendChild(t);tPool.push({el:t});}
+let mX=0,mY=0;const tPos=Array(16).fill(null).map(()=>({x:0,y:0}));
+document.addEventListener('mousemove',e=>{mX=e.clientX;mY=e.clientY;cursorEl.style.left=mX+'px';cursorEl.style.top=mY+'px';});
+(function tLoop(){tPos.unshift({x:mX,y:mY});tPos.pop();tPool.forEach((t,i)=>{t.el.style.left=tPos[i].x+'px';t.el.style.top=tPos[i].y+'px';t.el.style.opacity=Math.max(0,(1-i/16)*0.7);t.el.style.transform=`translate(-50%,-50%) scale(${Math.max(0.3,1-i/16)})`;});requestAnimationFrame(tLoop);})();
+</script>
+</body>
+</html>
